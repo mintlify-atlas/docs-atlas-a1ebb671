@@ -1,0 +1,422 @@
+---
+title: "Notifications"
+description: "API reference for Better Todo's notification system including queries, mutations, and email integration"
+---
+
+## Overview
+
+The Notifications module provides a comprehensive system for managing user notifications in Better Todo. It supports various notification types including mentions, assignments, due dates, and comments. The system integrates with email notifications to ensure users stay informed about important updates.
+
+## Notification Types
+
+The system supports the following notification types:
+
+- `mention` - User is mentioned in a comment or description
+- `assignment` - User is assigned to a card
+- `due_date` - Reminder about an upcoming or overdue card
+- `comment` - New comment on a card the user is watching
+
+## Notification Schema
+
+<ResponseField name="notifications" type="object">
+  <ResponseField name="_id" type="Id<'notifications'>" required>
+    Unique identifier for the notification
+  </ResponseField>
+  
+  <ResponseField name="userId" type="string" required>
+    User ID of the notification recipient (from Better Auth)
+  </ResponseField>
+  
+  <ResponseField name="type" type="string" required>
+    Type of notification (e.g., "mention", "assignment", "due_date", "comment")
+  </ResponseField>
+  
+  <ResponseField name="title" type="string" required>
+    Short title summarizing the notification
+  </ResponseField>
+  
+  <ResponseField name="message" type="string" required>
+    Detailed message content of the notification
+  </ResponseField>
+  
+  <ResponseField name="linkUrl" type="string">
+    Optional deep link to the relevant item (e.g., card, board)
+  </ResponseField>
+  
+  <ResponseField name="read" type="boolean" required>
+    Whether the notification has been read by the user
+  </ResponseField>
+  
+  <ResponseField name="createdAt" type="number" required>
+    Timestamp when the notification was created (milliseconds since epoch)
+  </ResponseField>
+</ResponseField>
+
+---
+
+## Queries
+
+### getAll
+
+Retrieve all notifications for the current authenticated user. Returns up to 50 most recent notifications, ordered by creation time (newest first).
+
+```typescript
+import { api } from "@/convex/_generated/api";
+import { useQuery } from "convex/react";
+
+function NotificationsList() {
+  const notifications = useQuery(api.notifications.getAll);
+  
+  return (
+    <div>
+      {notifications?.map(notification => (
+        <div key={notification._id}>
+          <h3>{notification.title}</h3>
+          <p>{notification.message}</p>
+          {!notification.read && <span>New</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+**Authentication:** Required
+
+**Returns:** `Array<Notification>` - Array of notification objects, empty array if user is not authenticated
+
+**Indexing:** Uses `by_user_time` index for efficient querying
+
+---
+
+### getUnreadCount
+
+Get the count of unread notifications for the current user. Useful for displaying notification badges in the UI.
+
+```typescript
+import { api } from "@/convex/_generated/api";
+import { useQuery } from "convex/react";
+
+function NotificationBadge() {
+  const unreadCount = useQuery(api.notifications.getUnreadCount);
+  
+  return (
+    <div className="notification-badge">
+      {unreadCount > 0 && <span>{unreadCount}</span>}
+    </div>
+  );
+}
+```
+
+**Authentication:** Required
+
+**Returns:** `number` - Count of unread notifications, 0 if user is not authenticated
+
+**Indexing:** Uses `by_user_read` index for efficient counting
+
+---
+
+## Mutations
+
+### markAsRead
+
+Mark a specific notification as read. The user must be the owner of the notification to mark it as read.
+
+```typescript
+import { api } from "@/convex/_generated/api";
+import { useMutation } from "convex/react";
+import { Id } from "@/convex/_generated/dataModel";
+
+function NotificationItem({ notificationId }: { notificationId: Id<"notifications"> }) {
+  const markAsRead = useMutation(api.notifications.markAsRead);
+  
+  const handleMarkRead = async () => {
+    await markAsRead({ notificationId });
+  };
+  
+  return <button onClick={handleMarkRead}>Mark as Read</button>;
+}
+```
+
+<ParamField path="notificationId" type="Id<'notifications'>" required>
+  The unique identifier of the notification to mark as read
+</ParamField>
+
+**Authentication:** Required
+
+**Returns:** 
+
+<ResponseField name="success" type="boolean">
+  Always returns `true` on successful operation
+</ResponseField>
+
+**Errors:**
+- `"Unauthorized"` - User is not authenticated
+- `"Notification not found"` - Notification ID does not exist
+- `"Access denied"` - User does not own the notification
+
+---
+
+### markAllAsRead
+
+Mark all unread notifications as read for the current authenticated user. This is a bulk operation that processes all unread notifications.
+
+```typescript
+import { api } from "@/convex/_generated/api";
+import { useMutation } from "convex/react";
+
+function NotificationsHeader() {
+  const markAllAsRead = useMutation(api.notifications.markAllAsRead);
+  
+  const handleMarkAllRead = async () => {
+    const result = await markAllAsRead();
+    console.log(`Marked ${result.count} notifications as read`);
+  };
+  
+  return <button onClick={handleMarkAllRead}>Mark All as Read</button>;
+}
+```
+
+**Authentication:** Required
+
+**Returns:** 
+
+<ResponseField name="success" type="boolean">
+  Always returns `true` on successful operation
+</ResponseField>
+
+<ResponseField name="count" type="number">
+  Number of notifications that were marked as read
+</ResponseField>
+
+**Errors:**
+- `"Unauthorized"` - User is not authenticated
+
+---
+
+### deleteNotification
+
+Permanently delete a notification. The user must be the owner of the notification to delete it.
+
+```typescript
+import { api } from "@/convex/_generated/api";
+import { useMutation } from "convex/react";
+import { Id } from "@/convex/_generated/dataModel";
+
+function NotificationItem({ notificationId }: { notificationId: Id<"notifications"> }) {
+  const deleteNotification = useMutation(api.notifications.deleteNotification);
+  
+  const handleDelete = async () => {
+    await deleteNotification({ notificationId });
+  };
+  
+  return <button onClick={handleDelete}>Delete</button>;
+}
+```
+
+<ParamField path="notificationId" type="Id<'notifications'>" required>
+  The unique identifier of the notification to delete
+</ParamField>
+
+**Authentication:** Required
+
+**Returns:** 
+
+<ResponseField name="success" type="boolean">
+  Always returns `true` on successful operation
+</ResponseField>
+
+**Errors:**
+- `"Unauthorized"` - User is not authenticated
+- `"Notification not found"` - Notification ID does not exist
+- `"Access denied"` - User does not own the notification
+
+---
+
+### create
+
+Create a new notification for a user. This is an internal helper function typically called by other backend functions when notification-worthy events occur.
+
+```typescript
+import { api } from "@/convex/_generated/api";
+import { useMutation } from "convex/react";
+
+// Internal usage example (typically called from other mutations)
+const createNotification = useMutation(api.notifications.create);
+
+await createNotification({
+  userId: "user_123",
+  type: "assignment",
+  title: "New Task Assignment",
+  message: "You were assigned to 'Implement login feature'",
+  linkUrl: "/boards/board_id?card=card_id"
+});
+```
+
+<ParamField path="userId" type="string" required>
+  The user ID of the notification recipient
+</ParamField>
+
+<ParamField path="type" type="string" required>
+  Type of notification (e.g., "mention", "assignment", "due_date", "comment")
+</ParamField>
+
+<ParamField path="title" type="string" required>
+  Short title summarizing the notification
+</ParamField>
+
+<ParamField path="message" type="string" required>
+  Detailed message content for the notification
+</ParamField>
+
+<ParamField path="linkUrl" type="string">
+  Optional deep link URL to the relevant resource
+</ParamField>
+
+**Returns:** `Notification` - The newly created notification object with all fields including `_id`, `read: false`, and `createdAt`
+
+---
+
+## Email Notification Integration
+
+Better Todo integrates with [Resend](https://resend.com) to send email notifications for important events. Email notifications are sent as HTML templates with a consistent brand design.
+
+### Card Assignment Emails
+
+When a user is assigned to a card, an email notification is automatically sent using the internal action `sendCardAssignmentEmail`.
+
+**Email includes:**
+- Assigner's name
+- Card title
+- Board title
+- Direct link to the card
+- Branded HTML template
+
+**Environment Variables Required:**
+- `RESEND_API_KEY` - Your Resend API key
+- `FROM_EMAIL` - Sender email address (defaults to "onboarding@resend.dev")
+- `SITE_URL` - Base URL for your application (for generating deep links)
+
+### Email Template Features
+
+All notification emails include:
+- Dark mode design matching Better Todo's UI
+- Responsive layout optimized for all devices
+- Clear call-to-action buttons
+- Brand colors (indigo-500: #6366f1)
+- Preview text optimization
+
+```typescript
+// Example internal action call (backend only)
+await ctx.scheduler.runAfter(0, internal.emails.sendCardAssignmentEmail, {
+  to: "user@example.com",
+  recipientName: "John Doe",
+  assignerName: "Jane Smith",
+  cardTitle: "Implement login feature",
+  boardTitle: "Q1 Roadmap",
+  boardId: "board_123",
+  cardId: "card_456"
+});
+```
+
+---
+
+## Best Practices
+
+### 1. Real-time Updates
+
+Use Convex's reactive queries to automatically update the UI when notifications change:
+
+```typescript
+// Notifications automatically re-render when new ones arrive
+const notifications = useQuery(api.notifications.getAll);
+const unreadCount = useQuery(api.notifications.getUnreadCount);
+```
+
+### 2. Optimistic Updates
+
+For better UX, update the UI optimistically when marking notifications as read:
+
+```typescript
+const markAsRead = useMutation(api.notifications.markAsRead);
+
+const handleClick = async (notificationId: Id<"notifications">) => {
+  // Optimistically update UI
+  setLocalRead(notificationId);
+  
+  try {
+    await markAsRead({ notificationId });
+  } catch (error) {
+    // Revert on error
+    setLocalUnread(notificationId);
+  }
+};
+```
+
+### 3. Pagination
+
+The `getAll` query limits results to 50 notifications. For applications with high notification volume, implement pagination:
+
+```typescript
+// Future implementation could accept cursor-based pagination
+export const getAll = query({
+  args: { cursor: v.optional(v.number()), limit: v.optional(v.number()) },
+  // ...
+});
+```
+
+### 4. Notification Cleanup
+
+Consider implementing a cleanup strategy for old notifications:
+
+```typescript
+// Delete notifications older than 30 days
+const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+const oldNotifications = await ctx.db
+  .query("notifications")
+  .filter(q => q.lt(q.field("createdAt"), thirtyDaysAgo))
+  .collect();
+```
+
+### 5. Rate Limiting
+
+Avoid notification spam by implementing rate limiting for similar notifications:
+
+```typescript
+// Check for duplicate notifications within the last hour
+const recentDuplicates = await ctx.db
+  .query("notifications")
+  .withIndex("by_user_time", q => q.eq("userId", userId))
+  .filter(q => 
+    q.and(
+      q.eq(q.field("type"), type),
+      q.gt(q.field("createdAt"), Date.now() - 3600000)
+    )
+  )
+  .collect();
+
+if (recentDuplicates.length === 0) {
+  // Create notification
+}
+```
+
+---
+
+## Database Indexes
+
+The notifications table uses the following indexes for optimal query performance:
+
+- `by_user` - Query all notifications for a user
+- `by_user_read` - Efficiently count unread notifications
+- `by_user_time` - Retrieve notifications ordered by creation time
+
+These indexes are defined in `schema.ts`:
+
+```typescript
+notifications: defineTable({
+  // ... fields
+})
+  .index("by_user", ["userId"])
+  .index("by_user_read", ["userId", "read"])
+  .index("by_user_time", ["userId", "createdAt"])
+```

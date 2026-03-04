@@ -1,0 +1,340 @@
+---
+title: 'Progressive Web App'
+description: 'Install Better Todo as a native-like app on any device'
+icon: 'mobile'
+---
+
+## Overview
+
+Better Todo is a Progressive Web App (PWA) that can be installed on desktop and mobile devices, providing a native app-like experience with offline support and improved performance.
+
+## PWA Features
+
+Better Todo includes the following PWA capabilities:
+
+- **Install to Home Screen**: Add the app to your device like a native app
+- **Offline Support**: Access your tasks even without an internet connection
+- **Auto-Updates**: Service worker automatically updates the app
+- **App-like Experience**: Runs in standalone mode without browser UI
+- **Fast Loading**: Cached assets for instant startup
+
+<Note>
+  PWA features work best when the app is served over HTTPS in production.
+</Note>
+
+## Configuration
+
+### Vite PWA Plugin
+
+Better Todo uses `vite-plugin-pwa` for PWA support. The configuration is in `apps/web/vite.config.ts`:
+
+```typescript apps/web/vite.config.ts
+import { VitePWA } from "vite-plugin-pwa";
+
+export default defineConfig({
+  plugins: [
+    VitePWA({
+      registerType: "autoUpdate",
+      manifest: {
+        name: "BetterTodo",
+        short_name: "BetterTodo",
+        description: "BetterTodo - PWA Application",
+        theme_color: "#0c0c0c",
+      },
+      pwaAssets: { disabled: false, config: true },
+      devOptions: { enabled: true },
+    }),
+  ],
+});
+```
+
+### Key Configuration Options
+
+- **`registerType: "autoUpdate"`**: Automatically updates the service worker when a new version is available
+- **`manifest`**: Defines app metadata for installation
+- **`pwaAssets`**: Enables automatic generation of app icons
+- **`devOptions.enabled`**: Allows testing PWA features in development mode
+
+## Generating PWA Assets
+
+Better Todo includes a script to generate all required PWA icons and splash screens from a single logo image.
+
+<Steps>
+  <Step title="Prepare Your Logo">
+    Place your logo as `public/logo.png` in the web app directory. Recommended:
+    - Size: 512x512px or larger
+    - Format: PNG with transparency
+    - Square aspect ratio
+  </Step>
+
+  <Step title="Configure Asset Generation">
+    The configuration is in `apps/web/pwa-assets.config.ts`:
+    
+    ```typescript
+    import { defineConfig, minimal2023Preset as preset } from "@vite-pwa/assets-generator/config";
+    
+    export default defineConfig({
+      headLinkOptions: {
+        preset: "2023",
+      },
+      preset,
+      images: ["public/logo.png"],
+    });
+    ```
+  </Step>
+
+  <Step title="Generate Assets">
+    Run the generation script from the web app directory:
+    
+    ```bash
+    npm run generate-pwa-assets
+    ```
+    
+    This will create:
+    - App icons in various sizes (192x192, 512x512, etc.)
+    - Apple touch icons
+    - Favicon variations
+    - Manifest icons
+  </Step>
+</Steps>
+
+<Warning>
+  Generated assets are placed in the `public/` directory. Commit these to version control for consistent branding.
+</Warning>
+
+## Web App Manifest
+
+The manifest defines how your app appears when installed. Key properties:
+
+```json
+{
+  "name": "BetterTodo",
+  "short_name": "BetterTodo",
+  "description": "BetterTodo - PWA Application",
+  "theme_color": "#0c0c0c",
+  "background_color": "#0c0c0c",
+  "display": "standalone",
+  "scope": "/",
+  "start_url": "/"
+}
+```
+
+### Customizing the Manifest
+
+You can customize the manifest in `vite.config.ts`:
+
+<Accordion title="Change App Name">
+  ```typescript
+  manifest: {
+    name: "My Custom Task Manager",
+    short_name: "TaskMgr",
+  }
+  ```
+</Accordion>
+
+<Accordion title="Customize Theme Color">
+  ```typescript
+  manifest: {
+    theme_color: "#3b82f6", // Blue theme
+    background_color: "#ffffff",
+  }
+  ```
+  
+  The theme color affects:
+  - Browser toolbar color on mobile
+  - Task switcher appearance
+  - Splash screen background
+</Accordion>
+
+<Accordion title="Set Display Mode">
+  ```typescript
+  manifest: {
+    display: "standalone", // Options: fullscreen, standalone, minimal-ui, browser
+  }
+  ```
+  
+  - **standalone**: Looks like a native app (recommended)
+  - **fullscreen**: Hides all browser UI
+  - **minimal-ui**: Shows minimal browser controls
+  - **browser**: Normal browser experience
+</Accordion>
+
+## Service Worker
+
+The service worker is automatically generated and handles:
+
+- **Caching Strategies**: Pre-caches critical assets for offline use
+- **Runtime Caching**: Caches API responses and dynamic content
+- **Update Notifications**: Prompts users when a new version is available
+
+### Auto-Update Behavior
+
+With `registerType: "autoUpdate"`:
+
+1. Service worker checks for updates on page load
+2. Downloads new version in the background
+3. Automatically activates when the app is closed and reopened
+4. User sees the new version on next visit
+
+<Note>
+  For critical updates, consider implementing a manual update prompt using `registerType: "prompt"`.
+</Note>
+
+## Installing the App
+
+### Desktop (Chrome, Edge, Brave)
+
+<Steps>
+  <Step title="Visit the App">
+    Open Better Todo in your browser.
+  </Step>
+
+  <Step title="Click Install Button">
+    Look for the install icon in the address bar or use the browser menu.
+  </Step>
+
+  <Step title="Confirm Installation">
+    Click "Install" in the prompt dialog.
+  </Step>
+</Steps>
+
+The app will now appear in your applications menu and can be launched like any native app.
+
+### Mobile (iOS)
+
+<Steps>
+  <Step title="Open in Safari">
+    Navigate to Better Todo in Safari browser.
+  </Step>
+
+  <Step title="Tap Share Button">
+    Tap the share icon at the bottom of the screen.
+  </Step>
+
+  <Step title="Add to Home Screen">
+    Select "Add to Home Screen" from the menu.
+  </Step>
+
+  <Step title="Confirm">
+    Edit the name if desired and tap "Add".
+  </Step>
+</Steps>
+
+### Mobile (Android)
+
+<Steps>
+  <Step title="Open in Chrome">
+    Navigate to Better Todo in Chrome browser.
+  </Step>
+
+  <Step title="Tap Install Prompt">
+    A banner will appear prompting you to install the app.
+  </Step>
+
+  <Step title="Or Use Menu">
+    Alternatively, tap the three-dot menu and select "Add to Home screen" or "Install app".
+  </Step>
+</Steps>
+
+## Offline Support
+
+Better Todo works offline with the following limitations:
+
+<Accordion title="What Works Offline">
+  - Viewing cached boards and tasks
+  - UI navigation and interactions
+  - Cached static assets (CSS, JS, images)
+</Accordion>
+
+<Accordion title="What Requires Connection">
+  - Creating new boards or tasks
+  - Real-time updates from other users
+  - Fetching data not in cache
+  - Authentication operations
+</Accordion>
+
+<Warning>
+  Convex (the backend database) requires an internet connection for real-time synchronization. Changes made offline won't persist.
+</Warning>
+
+## Testing PWA Features
+
+### Development Mode
+
+PWA features are enabled in development (`devOptions: { enabled: true }`), allowing you to test:
+
+```bash
+npm run dev
+```
+
+Then open DevTools > Application > Service Workers to inspect the service worker.
+
+### Production Testing
+
+<Steps>
+  <Step title="Build the App">
+    ```bash
+    npm run build
+    ```
+  </Step>
+
+  <Step title="Preview Locally">
+    ```bash
+    npm run serve
+    ```
+  </Step>
+
+  <Step title="Test Installation">
+    Open the preview URL and test the install prompt.
+  </Step>
+</Steps>
+
+### Lighthouse Audit
+
+Use Chrome DevTools Lighthouse to audit your PWA:
+
+1. Open DevTools (F12)
+2. Go to Lighthouse tab
+3. Select "Progressive Web App"
+4. Click "Generate report"
+
+Aim for a score of 90+ for production readiness.
+
+## Troubleshooting
+
+<Accordion title="Install Prompt Not Showing">
+  Requirements for install prompt:
+  - Must be served over HTTPS (or localhost)
+  - Must have a valid manifest
+  - Must have a service worker
+  - User hasn't dismissed the prompt recently
+  - App meets PWA criteria
+</Accordion>
+
+<Accordion title="Service Worker Not Updating">
+  Try:
+  - Hard refresh (Ctrl+Shift+R or Cmd+Shift+R)
+  - Clear site data in DevTools > Application > Storage
+  - Unregister service worker manually
+  - Check for errors in DevTools console
+</Accordion>
+
+<Accordion title="Icons Not Displaying">
+  Ensure:
+  - You ran `npm run generate-pwa-assets`
+  - Assets are in the `public/` directory
+  - Manifest paths are correct
+  - Images are accessible (check Network tab)
+</Accordion>
+
+## Best Practices
+
+- **Keep Assets Updated**: Regenerate PWA assets when changing branding
+- **Test on Real Devices**: Test installation on actual mobile devices
+- **Monitor Service Worker**: Check for console errors related to caching
+- **Version Your Updates**: Use semantic versioning in `package.json`
+- **Communicate Updates**: Notify users of new features when they update
+
+<Note>
+  For more advanced PWA features, refer to the [Vite PWA Plugin documentation](https://vite-pwa-org.netlify.app/).
+</Note>

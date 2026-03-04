@@ -1,0 +1,420 @@
+---
+title: Environment Variables
+description: Complete reference for all environment variables in Better Todo
+---
+
+Better Todo uses environment variables to configure authentication, email, and application URLs. This guide covers all required and optional variables.
+
+## Overview
+
+Environment variables are set in Convex using the CLI:
+
+```bash
+npx convex env set VARIABLE_NAME "value"
+```
+
+For production deployments, add the `--prod` flag:
+
+```bash
+npx convex env set VARIABLE_NAME "value" --prod
+```
+
+## Required Variables
+
+These variables must be set for Better Todo to function properly.
+
+### SITE_URL
+
+<ParamField path="SITE_URL" type="string" required>
+  The URL where your Better Todo frontend is hosted. Used for CORS configuration, email links, and OAuth callbacks.
+</ParamField>
+
+**Examples**:
+```bash
+# Local development
+npx convex env set SITE_URL "http://localhost:3001"
+
+# Production
+npx convex env set SITE_URL "https://yourdomain.com" --prod
+```
+
+**Used in**:
+- `auth.ts:12` - Authentication origin validation
+- `auth.ts:20` - Trusted origins for CORS
+- `emails.ts:49` - Email template header links
+- `emails.ts:127` - Board invite acceptance URLs
+- `emails.ts:199` - External invite signup URLs
+
+<Warning>
+Must match your actual frontend URL exactly, including protocol (http/https) and port. Mismatch will cause authentication and CORS errors.
+</Warning>
+
+### GOOGLE_CLIENT_ID
+
+<ParamField path="GOOGLE_CLIENT_ID" type="string" required>
+  OAuth 2.0 client ID from Google Cloud Console. Required for Google sign-in.
+</ParamField>
+
+**Setup**:
+1. Visit [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. Create OAuth 2.0 credentials
+3. Copy the Client ID
+
+```bash
+npx convex env set GOOGLE_CLIENT_ID "123456789-abcdefg.apps.googleusercontent.com"
+```
+
+**Used in**:
+- `auth.ts:28` - Google OAuth provider configuration
+
+### GOOGLE_CLIENT_SECRET
+
+<ParamField path="GOOGLE_CLIENT_SECRET" type="string" required>
+  OAuth 2.0 client secret from Google Cloud Console. Keep this secret secure.
+</ParamField>
+
+```bash
+npx convex env set GOOGLE_CLIENT_SECRET "GOCSPX-your-secret-here"
+```
+
+**Used in**:
+- `auth.ts:29` - Google OAuth provider configuration
+
+<Warning>
+**Security**: Never commit this value to version control. Never expose it in client-side code or logs.
+</Warning>
+
+### RESEND_API_KEY
+
+<ParamField path="RESEND_API_KEY" type="string" required>
+  API key from Resend for sending transactional emails. Starts with `re_`.
+</ParamField>
+
+**Setup**:
+1. Sign up at [resend.com](https://resend.com)
+2. Go to Settings → API Keys → Create API Key
+3. Copy the key
+
+```bash
+npx convex env set RESEND_API_KEY "re_your_api_key_here"
+```
+
+**Used in**:
+- `emails.ts:12` - Initializing Resend client for all email operations
+- `emails.ts:174` - Board invite emails
+- `emails.ts:278` - External invite emails
+- `emails.ts:352` - Card assignment emails
+
+## Optional Variables
+
+### FROM_EMAIL
+
+<ParamField path="FROM_EMAIL" type="string" default="onboarding@resend.dev">
+  The email address that appears in the "From" field of all outgoing emails.
+</ParamField>
+
+**Examples**:
+```bash
+# Development (uses Resend's default)
+npx convex env set FROM_EMAIL "onboarding@resend.dev"
+
+# Production (use your verified domain)
+npx convex env set FROM_EMAIL "noreply@yourdomain.com" --prod
+```
+
+**Used in**:
+- `emails.ts:17-19` - Default from address
+- `emails.ts:175` - Board invite sender
+- `emails.ts:279` - External invite sender
+- `emails.ts:353` - Card assignment sender
+
+<Warning>
+For production, verify your domain in Resend to avoid deliverability issues. Unverified domains may end up in spam folders.
+</Warning>
+
+### CONVEX_SITE_URL
+
+<ParamField path="CONVEX_SITE_URL" type="string">
+  The base URL for your Convex deployment. Automatically set by Convex in most cases.
+</ParamField>
+
+**Used in**:
+- `auth.ts:13` - Better Auth base URL configuration
+- `auth.ts:19` - OAuth callback URL construction
+
+**Example**:
+```
+https://your-project.convex.site
+```
+
+<Warning>
+Usually set automatically by Convex. Only override if you have a custom setup.
+</Warning>
+
+## Environment Setup
+
+### Local Development
+
+<Steps>
+  <Step title="Run setup script">
+    Initialize your Convex project:
+    
+    ```bash
+    bun run dev:setup
+    ```
+  </Step>
+  
+  <Step title="Set required variables">
+    Configure authentication and email:
+    
+    ```bash
+    npx convex env set SITE_URL "http://localhost:3001"
+    npx convex env set GOOGLE_CLIENT_ID "your-google-client-id"
+    npx convex env set GOOGLE_CLIENT_SECRET "your-google-client-secret"
+    npx convex env set RESEND_API_KEY "re_your_api_key"
+    npx convex env set FROM_EMAIL "onboarding@resend.dev"
+    ```
+  </Step>
+  
+  <Step title="Verify configuration">
+    Check that all variables are set:
+    
+    ```bash
+    npx convex env list
+    ```
+  </Step>
+  
+  <Step title="Start development server">
+    Run the app:
+    
+    ```bash
+    bun run dev
+    ```
+  </Step>
+</Steps>
+
+### Production Deployment
+
+<Steps>
+  <Step title="Deploy Convex backend">
+    Deploy to production:
+    
+    ```bash
+    npx convex deploy --prod
+    ```
+  </Step>
+  
+  <Step title="Set production variables">
+    Configure with production values:
+    
+    ```bash
+    npx convex env set SITE_URL "https://yourdomain.com" --prod
+    npx convex env set GOOGLE_CLIENT_ID "prod-client-id" --prod
+    npx convex env set GOOGLE_CLIENT_SECRET "prod-secret" --prod
+    npx convex env set RESEND_API_KEY "re_prod_api_key" --prod
+    npx convex env set FROM_EMAIL "noreply@yourdomain.com" --prod
+    ```
+  </Step>
+  
+  <Step title="Update Google OAuth redirect">
+    Add production callback URL in Google Cloud Console:
+    
+    ```
+    https://<your-project>.convex.site/api/auth/callback/google
+    ```
+  </Step>
+  
+  <Step title="Verify domain in Resend">
+    Set up SPF, DKIM, and DMARC records for your domain in Resend dashboard.
+  </Step>
+</Steps>
+
+## Configuration by Feature
+
+### Authentication
+
+Required for Better Auth with Google OAuth:
+
+<CodeGroup>
+```bash Required
+npx convex env set SITE_URL "http://localhost:3001"
+npx convex env set GOOGLE_CLIENT_ID "your-client-id"
+npx convex env set GOOGLE_CLIENT_SECRET "your-client-secret"
+```
+
+```bash Email Only (No OAuth)
+# If you don't need Google OAuth, you can omit these:
+# GOOGLE_CLIENT_ID
+# GOOGLE_CLIENT_SECRET
+# But SITE_URL is still required
+npx convex env set SITE_URL "http://localhost:3001"
+```
+</CodeGroup>
+
+### Email Notifications
+
+Required for sending board invites and assignment emails:
+
+```bash
+npx convex env set RESEND_API_KEY "re_your_api_key"
+npx convex env set FROM_EMAIL "noreply@yourdomain.com"
+npx convex env set SITE_URL "http://localhost:3001"
+```
+
+### Real-time Collaboration
+
+No additional environment variables required. Convex handles WebSocket connections automatically.
+
+## Viewing Environment Variables
+
+### List All Variables
+
+```bash
+# Development environment
+npx convex env list
+
+# Production environment
+npx convex env list --prod
+```
+
+### Get Specific Variable
+
+```bash
+npx convex env get SITE_URL
+```
+
+### Remove Variable
+
+```bash
+npx convex env remove VARIABLE_NAME
+```
+
+## Variable Validation
+
+Better Todo validates required environment variables at runtime:
+
+From `emails.ts:11-15`:
+```typescript
+function getResend() {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) throw new Error("RESEND_API_KEY environment variable is not set");
+    return new Resend(apiKey);
+}
+```
+
+From `auth.ts:12-13`:
+```typescript
+const siteUrl = process.env.SITE_URL!;
+const convexSiteUrl = process.env.CONVEX_SITE_URL!;
+```
+
+<Warning>
+Missing required variables will cause runtime errors. Always check logs when deploying.
+</Warning>
+
+## Troubleshooting
+
+### Variable Not Taking Effect
+
+1. **Restart Convex dev server** after setting variables:
+   ```bash
+   # Stop dev server (Ctrl+C)
+   bun run dev
+   ```
+
+2. **Check the right environment**:
+   ```bash
+   # Without --prod flag = development
+   # With --prod flag = production
+   npx convex env list --prod
+   ```
+
+3. **Redeploy functions**:
+   ```bash
+   npx convex deploy
+   ```
+
+### Authentication Errors
+
+**CORS errors or "Unauthorized"**:
+- Verify `SITE_URL` matches your frontend URL exactly
+- Include protocol and port: `http://localhost:3001`, not `localhost:3001`
+- Check browser console for specific error messages
+
+**Google OAuth not working**:
+- Verify callback URL in Google Cloud Console
+- Check `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set
+- Ensure redirect URI is: `https://<convex-deployment>.convex.site/api/auth/callback/google`
+
+### Email Not Sending
+
+1. **Verify API key**:
+   ```bash
+   npx convex env get RESEND_API_KEY
+   ```
+
+2. **Check Resend logs** at [resend.com/logs](https://resend.com/logs)
+
+3. **Verify FROM_EMAIL** is from a verified domain in production
+
+### Missing Environment Variables
+
+If you see errors like "environment variable is not set":
+
+```bash
+# Set the missing variable
+npx convex env set VARIABLE_NAME "value"
+
+# Restart dev server
+bun run dev
+```
+
+## Environment Variable Reference
+
+<ParamField path="SITE_URL" type="string" required>
+  Frontend application URL (e.g., `http://localhost:3001` or `https://yourdomain.com`)
+</ParamField>
+
+<ParamField path="GOOGLE_CLIENT_ID" type="string" required>
+  Google OAuth client ID from Google Cloud Console
+</ParamField>
+
+<ParamField path="GOOGLE_CLIENT_SECRET" type="string" required>
+  Google OAuth client secret (keep secure)
+</ParamField>
+
+<ParamField path="RESEND_API_KEY" type="string" required>
+  Resend API key for sending emails (starts with `re_`)
+</ParamField>
+
+<ParamField path="FROM_EMAIL" type="string" default="onboarding@resend.dev">
+  Sender email address for all outgoing emails
+</ParamField>
+
+<ParamField path="CONVEX_SITE_URL" type="string">
+  Convex deployment URL (usually auto-set)
+</ParamField>
+
+## Security Best Practices
+
+<Steps>
+  <Step title="Never commit secrets">
+    Add `.env` and `.env.local` to `.gitignore`. Use Convex's environment variables instead.
+  </Step>
+  
+  <Step title="Use different values per environment">
+    Separate API keys and secrets for development and production.
+  </Step>
+  
+  <Step title="Rotate secrets regularly">
+    Update `GOOGLE_CLIENT_SECRET` and `RESEND_API_KEY` periodically.
+  </Step>
+  
+  <Step title="Restrict API key permissions">
+    In Resend, create keys with minimal required permissions.
+  </Step>
+  
+  <Step title="Monitor usage">
+    Check Convex logs and Resend dashboard for suspicious activity.
+  </Step>
+</Steps>

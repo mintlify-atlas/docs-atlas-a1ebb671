@@ -1,0 +1,356 @@
+---
+title: 'Board Members'
+description: 'Manage board members, roles, and invitations'
+icon: 'users'
+---
+
+## Overview
+
+The board members API allows you to manage collaboration on boards by adding/removing members, updating roles, and handling invitations. Members can have different permission levels (owner, admin, member, viewer) that control their access to board features.
+
+## Queries
+
+### getMembers
+
+Retrieve all members of a specific board with their user information and roles.
+
+<ParamField path="boardId" type="Id<'boards'>" required>
+  The unique identifier of the board
+</ParamField>
+
+<ResponseField name="members" type="Array<object>">
+  Array of board members with user details
+  
+  <ResponseField name="_id" type="Id<'boardMembers'>">
+    Unique identifier for the membership record
+  </ResponseField>
+  
+  <ResponseField name="boardId" type="Id<'boards'>">
+    The board identifier
+  </ResponseField>
+  
+  <ResponseField name="userId" type="string">
+    The user's ID from Better Auth
+  </ResponseField>
+  
+  <ResponseField name="role" type="'owner' | 'admin' | 'member' | 'viewer'">
+    The member's permission level
+  </ResponseField>
+  
+  <ResponseField name="addedAt" type="number">
+    Timestamp when the member was added
+  </ResponseField>
+  
+  <ResponseField name="addedBy" type="string">
+    User ID who added this member
+  </ResponseField>
+  
+  <ResponseField name="user" type="object | null">
+    User information from auth component
+    
+    <ResponseField name="name" type="string | null">
+      User's display name
+    </ResponseField>
+    
+    <ResponseField name="email" type="string | null">
+      User's email address
+    </ResponseField>
+    
+    <ResponseField name="image" type="string | null">
+      User's profile image URL
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+
+**Example Response:**
+
+```json
+[
+  {
+    "_id": "jd7...",
+    "boardId": "ka2...",
+    "userId": "user_abc123",
+    "role": "owner",
+    "addedAt": 1709567890000,
+    "addedBy": "user_abc123",
+    "user": {
+      "name": "John Doe",
+      "email": "john@example.com",
+      "image": "https://..."
+    }
+  }
+]
+```
+
+### getPendingInvites
+
+Get all pending board invitations for the current authenticated user.
+
+<ResponseField name="invites" type="Array<object>">
+  Array of pending invitations with board details
+  
+  <ResponseField name="_id" type="Id<'boardInvites'>">
+    Unique identifier for the invite
+  </ResponseField>
+  
+  <ResponseField name="boardId" type="Id<'boards'>">
+    The board identifier
+  </ResponseField>
+  
+  <ResponseField name="role" type="'admin' | 'member' | 'viewer'">
+    The role you'll receive upon accepting
+  </ResponseField>
+  
+  <ResponseField name="status" type="'pending'">
+    Invite status (always 'pending' in this query)
+  </ResponseField>
+  
+  <ResponseField name="createdAt" type="number">
+    When the invite was created
+  </ResponseField>
+  
+  <ResponseField name="boardTitle" type="string">
+    Title of the board you're invited to
+  </ResponseField>
+  
+  <ResponseField name="boardColor" type="string | undefined">
+    Board's color theme
+  </ResponseField>
+  
+  <ResponseField name="inviterName" type="string">
+    Name of the person who invited you
+  </ResponseField>
+</ResponseField>
+
+## Mutations
+
+### addMember
+
+Add an existing user to a board by their user ID. Requires admin or owner permissions.
+
+<ParamField path="boardId" type="Id<'boards'>" required>
+  The board to add the member to
+</ParamField>
+
+<ParamField path="userId" type="string" required>
+  The Better Auth user ID of the person to add
+</ParamField>
+
+<ParamField path="role" type="'admin' | 'member' | 'viewer'" required>
+  The permission level for the new member
+</ParamField>
+
+**Role Descriptions:**
+- **admin**: Can manage members, board settings, and all content
+- **member**: Can create and edit cards and lists
+- **viewer**: Read-only access to the board
+
+**Returns:** `{ success: true }`
+
+**Errors:**
+- `"Unauthorized"` - Not authenticated
+- `"Insufficient permissions"` - Current user is not admin/owner
+- `"User is already a member"` - User already has access to this board
+
+### addMemberByEmail
+
+Invite a user to a board by email address. Handles both registered and unregistered users automatically.
+
+<ParamField path="boardId" type="Id<'boards'>" required>
+  The board to invite to
+</ParamField>
+
+<ParamField path="email" type="string" required>
+  Email address of the person to invite
+</ParamField>
+
+<ParamField path="role" type="'admin' | 'member' | 'viewer'" required>
+  The permission level for the new member
+</ParamField>
+
+**Behavior:**
+
+**For registered users:**
+- Creates a board invite record
+- Sends in-app notification
+- Sends email invitation
+- User can accept via notification or email
+
+**For unregistered users:**
+- Creates a token-based invite
+- Sends signup email with invite link
+- User completes signup and automatically joins board
+
+**Returns:**
+
+```typescript
+{
+  success: true,
+  isNewUser: boolean,  // true if email is unregistered
+  userName: string | null  // name if registered user found
+}
+```
+
+**Errors:**
+- `"Unauthorized"` - Not authenticated
+- `"Insufficient permissions"` - Not admin/owner
+- `"This user is already a member of this board"` - For registered users
+- `"An invite is already pending for this user"` - Duplicate invite
+- `"An invite is already pending for this email"` - For unregistered users
+
+### acceptInvite
+
+Accept a board invitation (for registered users receiving in-app invites).
+
+<ParamField path="inviteId" type="Id<'boardInvites'>" required>
+  The unique identifier of the invite to accept
+</ParamField>
+
+**Returns:** `{ success: true }`
+
+**Errors:**
+- `"Unauthorized"` - Not authenticated
+- `"Invite not found"` - Invalid invite ID
+- `"This invite is not for you"` - Invite belongs to different user
+- `"This invite has already been responded to"` - Invite already accepted/declined
+
+### acceptInviteByToken
+
+Accept a board invitation using a token from an email link (for unregistered users who signed up via invite).
+
+<ParamField path="token" type="string" required>
+  The secure token from the invitation email link
+</ParamField>
+
+**Returns:**
+
+```typescript
+{
+  success: true,
+  boardId: Id<"boards">  // ID of the board you joined
+}
+```
+
+**Errors:**
+- `"Unauthorized"` - Not authenticated
+- `"Invite not found or expired"` - Invalid or expired token
+- `"This invite has already been used"` - Token already consumed
+- `"This invite was sent to a different email address"` - Email mismatch
+
+### declineInvite
+
+Decline a board invitation.
+
+<ParamField path="inviteId" type="Id<'boardInvites'>" required>
+  The unique identifier of the invite to decline
+</ParamField>
+
+**Returns:** `{ success: true }`
+
+**Errors:**
+- `"Unauthorized"` - Not authenticated
+- `"Invite not found"` - Invalid invite ID
+- `"This invite is not for you"` - Invite belongs to different user
+- `"This invite has already been responded to"` - Already accepted/declined
+
+### updateMemberRole
+
+Change a member's permission level. Only owners can update roles.
+
+<ParamField path="boardId" type="Id<'boards'>" required>
+  The board containing the member
+</ParamField>
+
+<ParamField path="userId" type="string" required>
+  The user ID of the member to update
+</ParamField>
+
+<ParamField path="role" type="'admin' | 'member' | 'viewer'" required>
+  The new permission level
+</ParamField>
+
+**Returns:** `{ success: true }`
+
+**Errors:**
+- `"Unauthorized"` - Not authenticated
+- `"Only owners can change member roles"` - Insufficient permissions
+- `"Member not found"` - User is not a board member
+- `"Cannot change owner role"` - Cannot modify board owner's role
+
+### removeMember
+
+Remove a member from a board. Requires admin or owner permissions.
+
+<ParamField path="boardId" type="Id<'boards'>" required>
+  The board to remove the member from
+</ParamField>
+
+<ParamField path="userId" type="string" required>
+  The user ID of the member to remove
+</ParamField>
+
+**Returns:** `{ success: true }`
+
+**Errors:**
+- `"Unauthorized"` - Not authenticated
+- `"Insufficient permissions"` - Not admin/owner
+- `"Member not found"` - User is not a board member
+- `"Cannot remove board owner"` - Owner cannot be removed
+
+## Permission Levels
+
+<CardGroup cols={2}>
+  <Card title="Owner" icon="crown">
+    Full control over the board including deletion, member management, and all content operations.
+  </Card>
+  <Card title="Admin" icon="user-shield">
+    Can manage members, update board settings, and perform all content operations.
+  </Card>
+  <Card title="Member" icon="user">
+    Can create and edit cards, lists, and comments but cannot manage board settings or members.
+  </Card>
+  <Card title="Viewer" icon="eye">
+    Read-only access to view board content without making changes.
+  </Card>
+</CardGroup>
+
+## Schema Reference
+
+### BoardMembers Table
+
+```typescript
+{
+  boardId: Id<"boards">,
+  userId: string,  // Better Auth user ID
+  role: "owner" | "admin" | "member" | "viewer",
+  addedAt: number,
+  addedBy: string  // User ID
+}
+```
+
+**Indexes:**
+- `by_board`: Query all members of a board
+- `by_user`: Query all boards a user is a member of
+- `by_board_user`: Check specific user's membership on a board
+
+### BoardInvites Table
+
+```typescript
+{
+  boardId: Id<"boards">,
+  invitedUserId?: string,        // For registered users
+  invitedEmail?: string,         // For unregistered users
+  invitedByUserId: string,
+  role: "admin" | "member" | "viewer",
+  status: "pending" | "accepted" | "declined",
+  token?: string,                // For email-based invites
+  createdAt: number,
+  respondedAt?: number
+}
+```
+
+**Indexes:**
+- `by_user_status`: Query invites by user and status
+- `by_board`: Query all invites for a board
+- `by_email`: Look up invites by email address
+- `by_token`: Accept invite via token

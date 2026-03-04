@@ -1,0 +1,337 @@
+---
+title: "Lists API"
+description: "API reference for managing lists in Better Todo boards"
+---
+
+Lists are the primary organizational unit within a Better Todo board. They contain cards and can be reordered, archived, and deleted. All list operations require proper board access permissions.
+
+## Authentication
+
+All list mutations require authentication via Better Auth. Unauthorized requests will throw an error.
+
+## Permissions
+
+- **Viewer**: Cannot create, update, or archive lists
+- **Member**: Can create and update lists
+- **Admin**: Can create, update, archive, and delete lists
+- **Owner**: Full access to all list operations
+
+---
+
+## Mutations
+
+### create
+
+Creates a new list within a board. The list is automatically positioned at the end of the existing lists.
+
+<ParamField path="boardId" type="Id<'boards'>" required>
+  The ID of the board where the list will be created
+</ParamField>
+
+<ParamField path="title" type="string" required>
+  The title of the new list
+</ParamField>
+
+<ResponseField name="list" type="object">
+  Returns the newly created list object with the following fields:
+  
+  <ResponseField name="_id" type="Id<'lists'>">
+    Unique identifier for the list
+  </ResponseField>
+  
+  <ResponseField name="boardId" type="Id<'boards'>">
+    ID of the parent board
+  </ResponseField>
+  
+  <ResponseField name="title" type="string">
+    The list title
+  </ResponseField>
+  
+  <ResponseField name="position" type="number">
+    Position index for ordering (auto-incremented from max position)
+  </ResponseField>
+  
+  <ResponseField name="archived" type="boolean">
+    Archive status (always false for new lists)
+  </ResponseField>
+  
+  <ResponseField name="createdAt" type="number">
+    Unix timestamp of creation time
+  </ResponseField>
+  
+  <ResponseField name="cardLimit" type="number" optional>
+    Optional limit on number of cards (undefined for new lists)
+  </ResponseField>
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+const createList = useMutation(api.lists.create);
+
+// Create a new list
+const newList = await createList({
+  boardId: boardId as Id<"boards">,
+  title: "To Do"
+});
+
+console.log(newList._id); // List ID
+console.log(newList.position); // Auto-assigned position
+```
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `Insufficient permissions` - User is a viewer or not a board member
+
+---
+
+### update
+
+Updates an existing list's title or card limit settings.
+
+<ParamField path="listId" type="Id<'lists'>" required>
+  The ID of the list to update
+</ParamField>
+
+<ParamField path="title" type="string" optional>
+  New title for the list
+</ParamField>
+
+<ParamField path="cardLimit" type="number" optional>
+  Maximum number of cards allowed in the list
+</ParamField>
+
+<ResponseField name="list" type="object">
+  Returns the updated list object with all fields
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+const updateList = useMutation(api.lists.update);
+
+// Update list title
+await updateList({
+  listId: listId as Id<"lists">,
+  title: "In Progress"
+});
+
+// Set a card limit
+await updateList({
+  listId: listId as Id<"lists">,
+  cardLimit: 5
+});
+
+// Update both title and limit
+await updateList({
+  listId: listId as Id<"lists">,
+  title: "Done",
+  cardLimit: 10
+});
+```
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `List not found` - The specified list doesn't exist
+- `Insufficient permissions` - User is a viewer or not a board member
+
+---
+
+### updatePosition
+
+Updates a list's position for drag-and-drop reordering. This function automatically handles shifting other lists to maintain proper ordering.
+
+<ParamField path="listId" type="Id<'lists'>" required>
+  The ID of the list to reorder
+</ParamField>
+
+<ParamField path="newPosition" type="number" required>
+  The target position index (0-based)
+</ParamField>
+
+<ResponseField name="success" type="boolean">
+  Returns `true` when the reordering is complete
+</ResponseField>
+
+**Positioning Logic:**
+
+The positioning system uses zero-based indexing and automatically shifts affected lists:
+
+- **Moving right** (increasing position): Lists between old and new positions shift left by 1
+- **Moving left** (decreasing position): Lists between new and old positions shift right by 1
+- Archived lists are excluded from position calculations
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+const updatePosition = useMutation(api.lists.updatePosition);
+
+// Move list to position 2
+// If moving from position 0 → 2:
+// - List at position 1 becomes position 0
+// - List at position 2 becomes position 1
+// - Selected list becomes position 2
+await updatePosition({
+  listId: listId as Id<"lists">,
+  newPosition: 2
+});
+```
+
+**Position Calculation Example:**
+
+```
+Initial state: [List A(0), List B(1), List C(2), List D(3)]
+
+Move List A from 0 to 2:
+1. Lists at positions 1-2 shift left
+2. Result: [List B(0), List C(1), List A(2), List D(3)]
+
+Move List D from 3 to 0:
+1. Lists at positions 0-2 shift right
+2. Result: [List D(0), List B(1), List C(2), List A(3)]
+```
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `List not found` - The specified list doesn't exist
+- `Insufficient permissions` - User is a viewer or not a board member
+
+---
+
+### archive
+
+Archives a list, hiding it from the main board view. Archived lists can be restored later. Cards within archived lists remain accessible.
+
+<ParamField path="listId" type="Id<'lists'>" required>
+  The ID of the list to archive
+</ParamField>
+
+<ResponseField name="success" type="boolean">
+  Returns `true` when archiving is complete
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+const archiveList = useMutation(api.lists.archive);
+
+// Archive a list
+await archiveList({
+  listId: listId as Id<"lists">
+});
+```
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `List not found` - The specified list doesn't exist
+- `Insufficient permissions` - User is a viewer or doesn't have owner/admin/member role
+
+---
+
+### deleteList
+
+Permanently deletes a list and all its cards. This operation cannot be undone.
+
+<ParamField path="listId" type="Id<'lists'>" required>
+  The ID of the list to delete
+</ParamField>
+
+<ResponseField name="success" type="boolean">
+  Returns `true` when deletion is complete
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+const deleteList = useMutation(api.lists.deleteList);
+
+// Permanently delete a list and all its cards
+await deleteList({
+  listId: listId as Id<"lists">
+});
+```
+
+**Cascade Behavior:**
+- All cards in the list are permanently deleted
+- Card-related data (comments, attachments, labels) are removed via card deletion
+- This operation requires admin or owner permissions
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `List not found` - The specified list doesn't exist
+- `Insufficient permissions` - User doesn't have admin or owner role
+
+---
+
+## List Positioning System
+
+Better Todo uses a **numeric position system** for list ordering:
+
+### Key Concepts
+
+1. **Zero-based indexing**: Positions start at 0
+2. **Sequential integers**: Positions are 0, 1, 2, 3, etc.
+3. **Auto-increment**: New lists get `maxPosition + 1`
+4. **Automatic shifting**: Moving lists automatically updates affected positions
+
+### Position Updates
+
+When a list is moved, the system:
+
+1. Identifies the old and new positions
+2. Determines the direction of movement (left or right)
+3. Updates all affected lists in between
+4. Maintains sequential numbering
+
+### Example Flow
+
+```typescript
+// Initial board state
+const lists = [
+  { id: "a", title: "Backlog", position: 0 },
+  { id: "b", title: "To Do", position: 1 },
+  { id: "c", title: "In Progress", position: 2 },
+  { id: "d", title: "Done", position: 3 }
+];
+
+// Move "Done" (position 3) to position 1
+await updatePosition({
+  listId: "d",
+  newPosition: 1
+});
+
+// Resulting state:
+// - Backlog: position 0 (unchanged)
+// - Done: position 1 (moved here)
+// - To Do: position 2 (shifted right from 1)
+// - In Progress: position 3 (shifted right from 2)
+```
+
+### Best Practices
+
+- Always use `updatePosition` for reordering (don't manually update positions)
+- Query lists sorted by position: `.withIndex("by_board_position", q => q.eq("boardId", id))`
+- Consider archived lists separately (they maintain positions but don't interfere with active lists)
+
+---
+
+## Related APIs
+
+- [Boards API](/api/boards) - Create and manage boards that contain lists
+- [Cards API](/api/cards) - Create and manage cards within lists
+- [Members API](/api/members) - Manage permissions for list operations

@@ -1,0 +1,424 @@
+---
+title: Collaboration
+description: Work together with your team through board sharing, assignments, and real-time features
+---
+
+Better Todo is built for teams. Collaborate seamlessly with board members through powerful permission controls, assignments, comments, and real-time presence.
+
+## Adding Team Members
+
+Invite team members to collaborate on your boards:
+
+### Email Invitations
+
+Invite users by email address, whether they have an account or not:
+
+```typescript
+await addMemberByEmail({
+  boardId: "board_id",
+  email: "teammate@example.com",
+  role: "member"
+});
+```
+
+<Accordion title="For Registered Users">
+  When inviting an existing Better Todo user:
+  
+  1. **In-app notification** is created instantly
+  2. **Email invitation** is sent via Resend
+  3. User can accept from either notification or email
+  4. Upon acceptance, they're immediately added to the board
+  
+  ```typescript
+  // In-app notification is automatically created:
+  {
+    type: "board_invite",
+    title: "Board Invitation",
+    message: "You've been invited to join 'Project Name'",
+    linkUrl: "/boards/board_id"
+  }
+  ```
+</Accordion>
+
+<Accordion title="For Unregistered Users">
+  When inviting someone who doesn't have an account:
+  
+  1. **Secure token** is generated for the invitation
+  2. **Signup email** is sent with automatic board access
+  3. User creates account via the invite link
+  4. Upon signup, they're automatically added to the board
+  
+  The invite includes step-by-step instructions:
+  - Create a free account (30 seconds)
+  - Automatically added to the board
+  - Start collaborating immediately
+</Accordion>
+
+### Direct User Addition
+
+For registered users already in your system:
+
+```typescript
+await addMember({
+  boardId: "board_id",
+  userId: "user_id",
+  role: "member"
+});
+```
+
+## User Roles and Permissions
+
+Better Todo implements a four-tier role system with clearly defined permissions:
+
+<CardGroup cols={2}>
+  <Card title="Owner" icon="crown" color="#eab308">
+    **Full board control**
+    
+    Permissions:
+    - Delete the board permanently
+    - Change any member's role
+    - Remove any member (except themselves)
+    - Update all board settings
+    - Full create/edit access
+    
+    <Note>Only one owner per board. Cannot be removed.</Note>
+  </Card>
+  
+  <Card title="Admin" icon="shield" color="#3b82f6">
+    **Member and settings management**
+    
+    Permissions:
+    - Invite and remove members
+    - Update board settings and properties
+    - Full create/edit access to cards
+    - Cannot delete the board
+    - Cannot change owner role
+    
+    <Note>Multiple admins allowed per board.</Note>
+  </Card>
+  
+  <Card title="Member" icon="user" color="#10b981">
+    **Standard collaboration access**
+    
+    Permissions:
+    - Create and edit cards
+    - Move cards between lists
+    - Add comments and attachments
+    - Assign themselves or others to cards
+    - Cannot manage board members
+    
+    <Note>Default role for team collaboration.</Note>
+  </Card>
+  
+  <Card title="Viewer" icon="eye" color="#6b7280">
+    **Read-only access**
+    
+    Permissions:
+    - View all board content
+    - See cards, lists, and comments
+    - View attachments
+    - Cannot create or edit anything
+    
+    <Note>Perfect for stakeholders and observers.</Note>
+  </Card>
+</CardGroup>
+
+### Managing Roles
+
+Only board owners can change member roles:
+
+```typescript
+await updateMemberRole({
+  boardId: "board_id",
+  userId: "user_id",
+  role: "admin"
+});
+```
+
+<Note>
+  Owner roles cannot be changed. The board owner is set when the board is created.
+</Note>
+
+### Removing Members
+
+Admins and owners can remove members (except the owner):
+
+```typescript
+await removeMember({
+  boardId: "board_id",
+  userId: "user_id"
+});
+```
+
+## Board Invites
+
+Manage pending invitations:
+
+### Viewing Pending Invites
+
+```typescript
+// Get all pending invites for current user
+const invites = await getPendingInvites();
+
+// Each invite includes:
+// {
+//   boardTitle: "Project Name",
+//   boardColor: "#6366f1",
+//   inviterName: "John Doe",
+//   role: "member",
+//   createdAt: timestamp
+// }
+```
+
+### Accepting Invites
+
+<Tabs>
+  <Tab title="In-App Acceptance">
+    Accept invites directly from notifications:
+    
+    ```typescript
+    await acceptInvite({ inviteId: "invite_id" });
+    ```
+    
+    The user is immediately added as a board member with the specified role.
+  </Tab>
+  
+  <Tab title="Token-Based Acceptance">
+    Accept invites via email link (for new users):
+    
+    ```typescript
+    await acceptInviteByToken({ token: "secure_token" });
+    ```
+    
+    Validates the token, verifies email match, and adds the user to the board.
+  </Tab>
+</Tabs>
+
+### Declining Invites
+
+```typescript
+await declineInvite({ inviteId: "invite_id" });
+```
+
+## Card Assignments
+
+Assign team members to cards to clarify ownership and responsibility:
+
+### Assigning Users
+
+```typescript
+await assignUser({
+  cardId: "card_id",
+  userId: "user_id"
+});
+```
+
+When a user is assigned:
+
+1. **In-app notification** is created
+2. **Email notification** is sent via Resend
+3. User sees the assignment in their dashboard
+4. Assignment is tracked with timestamp and assigner
+
+<Accordion title="Assignment Notification">
+  Assigned users receive a notification:
+  
+  ```typescript
+  {
+    type: "assignment",
+    title: "New Assignment",
+    message: "John assigned you to 'Implement user auth'",
+    linkUrl: "/boards/board_id?card=card_id"
+  }
+  ```
+  
+  The email includes:
+  - Who assigned them
+  - Card title and board name
+  - Direct link to view the card
+</Accordion>
+
+### Assignment Schema
+
+Assignments track the following data:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `cardId` | ID | The card being assigned |
+| `userId` | string | The assigned user |
+| `assignedAt` | number | Assignment timestamp |
+| `assignedBy` | string | User who made the assignment |
+
+### Removing Assignments
+
+```typescript
+await unassignUser({
+  cardId: "card_id",
+  userId: "user_id"
+});
+```
+
+### Multiple Assignments
+
+<Note>
+  Cards support multiple assignments. Assign multiple team members when work needs to be shared or reviewed.
+</Note>
+
+## Comments and Mentions
+
+Communicate and collaborate through card comments:
+
+### Comment Schema
+
+Comments support rich features:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `cardId` | ID | Parent card |
+| `userId` | string | Comment author |
+| `content` | string | Rich text/markdown content |
+| `parentCommentId` | ID | Optional, for threaded replies |
+| `edited` | boolean | Whether the comment was edited |
+| `createdAt` | number | Creation timestamp |
+| `updatedAt` | number | Last update timestamp |
+
+### Comment Features
+
+<Accordion title="Rich Text Support">
+  Comments support markdown formatting:
+  
+  - **Bold** and *italic* text
+  - Lists and code blocks
+  - Links with automatic previews
+  - Mentions using @username
+</Accordion>
+
+<Accordion title="Threaded Replies">
+  Comments can be nested using `parentCommentId`:
+  
+  ```typescript
+  await createComment({
+    cardId: "card_id",
+    content: "Reply to previous comment",
+    parentCommentId: "parent_comment_id"
+  });
+  ```
+</Accordion>
+
+<Accordion title="Edit History">
+  Comments track edit status:
+  
+  ```typescript
+  await updateComment({
+    commentId: "comment_id",
+    content: "Updated content",
+    edited: true
+  });
+  ```
+</Accordion>
+
+## Real-Time Presence
+
+See who's actively working on the board in real-time:
+
+### Presence Schema
+
+Better Todo tracks live user presence:
+
+```typescript
+{
+  boardId: "board_id",
+  userId: "user_id",
+  updatedAt: timestamp,
+  cursor: {
+    x: 0.5,        // Normalized X position (0-1)
+    y: 0.3,        // Normalized Y position (0-1)
+    cardId: "..."  // Optional, if hovering over a card
+  }
+}
+```
+
+### Cursor Overlay
+
+The `CursorOverlay` component displays live cursors:
+
+- **Color-coded** cursors per user (7 distinct colors)
+- **User name labels** showing who's where
+- **Smooth transitions** as cursors move
+- **Consistent colors** based on user ID
+
+<Accordion title="Implementation">
+  ```typescript
+  <CursorOverlay users={activeBoardUsers} />
+  ```
+  
+  Features:
+  - Colors: red, amber, emerald, blue, violet, pink, teal
+  - Position calculated as percentage of viewport
+  - Updates with 200ms transitions
+  - Pointer-events disabled to not interfere with clicks
+</Accordion>
+
+### Presence Updates
+
+Presence is automatically tracked:
+
+- Updates when user moves cursor
+- Shows which card user is interacting with
+- Includes timestamp for staleness detection
+- Indexed for efficient board-wide queries
+
+## Board Member List
+
+View and manage all board members:
+
+```typescript
+const members = await getBoardMembers({ boardId: "board_id" });
+
+// Returns enriched member data:
+// [
+//   {
+//     userId: "...",
+//     role: "admin",
+//     addedAt: timestamp,
+//     addedBy: "user_id",
+//     user: {
+//       name: "John Doe",
+//       email: "john@example.com",
+//       image: "https://..."
+//     }
+//   }
+// ]
+```
+
+<Note>
+  User data is resolved from the Better Auth component and includes name, email, and profile image.
+</Note>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Appropriate Roles" icon="user-gear">
+    Give team members the minimum permissions needed. Most collaborators work well as Members.
+  </Card>
+  
+  <Card title="Assign Card Owners" icon="user-check">
+    Assign at least one person to each card to ensure accountability and clear ownership.
+  </Card>
+  
+  <Card title="Comment Frequently" icon="message-square">
+    Use comments to document decisions, ask questions, and keep everyone in the loop.
+  </Card>
+  
+  <Card title="Check Presence" icon="users">
+    Watch for active cursors before making major changes to avoid conflicting edits.
+  </Card>
+  
+  <Card title="Invite Early" icon="user-plus">
+    Add team members as soon as a board is created to enable collaboration from day one.
+  </Card>
+  
+  <Card title="Respect Permissions" icon="shield">
+    Don't promote everyone to Admin. Keep control limited to those who need it.
+  </Card>
+</CardGroup>

@@ -1,0 +1,229 @@
+---
+title: 'Deployment'
+description: 'Deploy Better Todo to production with Convex and Vercel'
+icon: 'rocket'
+---
+
+## Overview
+
+Better Todo consists of two main parts that need to be deployed:
+- **Backend**: Convex database and serverless functions
+- **Frontend**: Vite-based React application
+
+This guide walks you through deploying both components to production.
+
+## Prerequisites
+
+<Note>
+  Before deploying, ensure you have:
+  - A [Convex account](https://convex.dev)
+  - A hosting provider account (Vercel, Netlify, etc.)
+  - Google OAuth credentials for production
+</Note>
+
+## Deploying the Convex Backend
+
+<Steps>
+  <Step title="Install Convex CLI">
+    If you haven't already, install the Convex CLI globally:
+    
+    ```bash
+    npm install -g convex
+    ```
+  </Step>
+
+  <Step title="Navigate to Backend Directory">
+    ```bash
+    cd packages/backend
+    ```
+  </Step>
+
+  <Step title="Create Production Deployment">
+    Run the deployment command to create a production Convex deployment:
+    
+    ```bash
+    npx convex deploy
+    ```
+    
+    This will:
+    - Create a new production deployment in your Convex dashboard
+    - Push all your schema and functions to production
+    - Provide you with a production URL
+  </Step>
+
+  <Step title="Configure Environment Variables">
+    In your Convex dashboard, add the following environment variables:
+    
+    - `BETTER_AUTH_SECRET`: A secure random string for session encryption
+    - `BETTER_AUTH_URL`: Your production frontend URL (e.g., `https://yourdomain.com`)
+    - `GOOGLE_CLIENT_ID`: Your Google OAuth client ID
+    - `GOOGLE_CLIENT_SECRET`: Your Google OAuth client secret
+    - Any other API keys (Resend, Google AI, etc.)
+  </Step>
+</Steps>
+
+<Warning>
+  Never commit your production secrets to version control. Always use environment variables.
+</Warning>
+
+## Deploying the Frontend
+
+### Option 1: Deploy to Vercel
+
+<Steps>
+  <Step title="Connect Repository">
+    1. Go to [Vercel](https://vercel.com) and sign in
+    2. Click "Add New Project"
+    3. Import your Git repository
+  </Step>
+
+  <Step title="Configure Build Settings">
+    Set the following build configuration:
+    
+    - **Framework Preset**: Vite
+    - **Root Directory**: `apps/web`
+    - **Build Command**: `npm run build`
+    - **Output Directory**: `dist`
+    - **Install Command**: `npm install` (Vercel will auto-detect Bun if using `bun.lockb`)
+  </Step>
+
+  <Step title="Add Environment Variables">
+    Add the following environment variables in your Vercel project settings:
+    
+    ```bash
+    VITE_CONVEX_URL=https://your-convex-deployment.convex.cloud
+    ```
+    
+    Get your production Convex URL from the Convex dashboard.
+  </Step>
+
+  <Step title="Deploy">
+    Click "Deploy" and Vercel will build and deploy your application.
+  </Step>
+</Steps>
+
+### Option 2: Deploy to Other Platforms
+
+Better Todo can be deployed to any static hosting provider that supports Vite applications:
+
+<Accordion title="Netlify">
+  **Build settings:**
+  - Build command: `npm run build`
+  - Publish directory: `apps/web/dist`
+  - Base directory: `apps/web`
+  
+  **Environment variables:**
+  ```bash
+  VITE_CONVEX_URL=https://your-convex-deployment.convex.cloud
+  ```
+</Accordion>
+
+<Accordion title="Cloudflare Pages">
+  **Build settings:**
+  - Build command: `npm run build`
+  - Build output directory: `apps/web/dist`
+  - Root directory: `apps/web`
+  
+  **Environment variables:**
+  ```bash
+  VITE_CONVEX_URL=https://your-convex-deployment.convex.cloud
+  ```
+</Accordion>
+
+## Google OAuth Configuration
+
+After deploying your frontend, you need to configure Google OAuth redirect URIs:
+
+<Steps>
+  <Step title="Open Google Cloud Console">
+    Go to [Google Cloud Console](https://console.cloud.google.com) and select your project.
+  </Step>
+
+  <Step title="Configure Authorized Redirect URIs">
+    Navigate to **APIs & Services > Credentials** and edit your OAuth 2.0 Client ID.
+    
+    Add the following authorized redirect URIs:
+    ```
+    https://yourdomain.com/api/auth/callback/google
+    https://your-convex-deployment.convex.site/api/auth/callback/google
+    ```
+  </Step>
+
+  <Step title="Add Authorized JavaScript Origins">
+    Add your production domain:
+    ```
+    https://yourdomain.com
+    ```
+  </Step>
+</Steps>
+
+## Custom Domain Setup
+
+<Note>
+  Most hosting providers allow you to add custom domains easily.
+</Note>
+
+### Vercel Custom Domain
+
+1. Go to your project settings in Vercel
+2. Navigate to **Domains**
+3. Add your custom domain
+4. Configure DNS records as instructed by Vercel
+
+### Update Environment Variables
+
+After adding a custom domain, update:
+- `BETTER_AUTH_URL` in Convex environment variables
+- Google OAuth redirect URIs
+
+## Verification
+
+After deployment, verify everything works:
+
+<Steps>
+  <Step title="Test Authentication">
+    Try logging in with Google OAuth to ensure the authentication flow works.
+  </Step>
+
+  <Step title="Test Database Operations">
+    Create a board, add tasks, and verify data persistence.
+  </Step>
+
+  <Step title="Test PWA Features">
+    Install the app on your device and test offline functionality.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<Accordion title="OAuth Redirect Mismatch Error">
+  Ensure your Google OAuth redirect URIs exactly match your production URLs. Check for:
+  - Missing trailing slashes
+  - HTTP vs HTTPS
+  - Correct domain spelling
+</Accordion>
+
+<Accordion title="Convex Connection Failed">
+  Verify that:
+  - `VITE_CONVEX_URL` is set correctly
+  - Your Convex deployment is active in the dashboard
+  - Environment variables are properly deployed (rebuild may be needed)
+</Accordion>
+
+<Accordion title="Build Failures">
+  Common issues:
+  - Ensure all dependencies are in `package.json`
+  - Check for TypeScript errors: `npm run check-types`
+  - Verify Node.js version compatibility
+</Accordion>
+
+## Continuous Deployment
+
+Most platforms support automatic deployments:
+
+- **Vercel/Netlify**: Automatically deploy on git push to main branch
+- **Convex**: Use `npx convex deploy --cmd "npm run build"` in CI/CD
+
+<Warning>
+  Always test in a staging environment before deploying to production.
+</Warning>

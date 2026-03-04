@@ -1,0 +1,279 @@
+---
+title: Authentication
+description: Configure Better Auth with email/password and Google OAuth
+---
+
+Better Todo uses [Better Auth](https://better-auth.com) for authentication, providing both email/password and Google OAuth sign-in options.
+
+## Better Auth Setup
+
+Authentication is configured in `packages/backend/convex/auth.ts` and integrated with Convex's database adapter.
+
+### Core Configuration
+
+The auth system requires the following environment variables:
+
+<CodeGroup>
+```bash Convex CLI
+npx convex env set SITE_URL "http://localhost:3001"
+npx convex env set GOOGLE_CLIENT_ID "your-google-client-id"
+npx convex env set GOOGLE_CLIENT_SECRET "your-google-client-secret"
+```
+
+```bash Production
+npx convex env set SITE_URL "https://yourdomain.com" --prod
+npx convex env set GOOGLE_CLIENT_ID "your-google-client-id" --prod
+npx convex env set GOOGLE_CLIENT_SECRET "your-google-client-secret" --prod
+```
+</CodeGroup>
+
+## Email/Password Authentication
+
+Email and password authentication is enabled by default with email verification disabled for easier development.
+
+### Configuration Details
+
+From `auth.ts:22-25`:
+
+```typescript
+emailAndPassword: {
+    enabled: true,
+    requireEmailVerification: false,
+}
+```
+
+<Warning>
+For production deployments, consider enabling email verification by setting `requireEmailVerification: true` and configuring email sending through Resend.
+</Warning>
+
+### User Registration Flow
+
+<Steps>
+  <Step title="User signs up">
+    Users provide email and password through the sign-up form.
+  </Step>
+  
+  <Step title="Account created">
+    Better Auth creates the user account in Convex's database with role `"user"`.
+  </Step>
+  
+  <Step title="Session established">
+    User is automatically signed in with a secure session token.
+  </Step>
+</Steps>
+
+## Google OAuth Configuration
+
+Google OAuth provides a seamless single sign-on experience for users.
+
+### Setup Steps
+
+<Steps>
+  <Step title="Create Google OAuth credentials">
+    Visit [Google Cloud Console](https://console.cloud.google.com/apis/credentials) and create OAuth 2.0 credentials.
+  </Step>
+  
+  <Step title="Configure redirect URI">
+    Add your Convex callback URL:
+    
+    ```
+    https://<your-deployment>.convex.site/api/auth/callback/google
+    ```
+    
+    For local development, you may also need:
+    ```
+    http://localhost:3001/api/auth/callback/google
+    ```
+  </Step>
+  
+  <Step title="Set environment variables">
+    Configure your Google credentials in Convex:
+    
+    ```bash
+    npx convex env set GOOGLE_CLIENT_ID "your-google-client-id"
+    npx convex env set GOOGLE_CLIENT_SECRET "your-google-client-secret"
+    ```
+  </Step>
+</Steps>
+
+### Configuration Code
+
+From `auth.ts:26-31`:
+
+```typescript
+socialProviders: {
+    google: {
+        clientId: process.env.GOOGLE_CLIENT_ID!,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    },
+}
+```
+
+## Session Management
+
+Better Auth handles session management automatically with secure, HTTP-only cookies.
+
+### Getting Current User
+
+Use the `getCurrentUser` query to retrieve the authenticated user:
+
+```typescript
+import { api } from "@/convex/_generated/api";
+import { useQuery } from "convex/react";
+
+function MyComponent() {
+  const user = useQuery(api.auth.getCurrentUser);
+  
+  if (!user) return <div>Not authenticated</div>;
+  
+  return <div>Welcome, {user.name}!</div>;
+}
+```
+
+From `auth.ts:44-49`:
+
+```typescript
+export const getCurrentUser = query({
+    args: {},
+    handler: async (ctx) => {
+        return await authComponent.safeGetAuthUser(ctx);
+    },
+});
+```
+
+## Creating Admin Users
+
+Admin users have elevated privileges to manage users and access admin-only features.
+
+### First Admin Setup
+
+<Steps>
+  <Step title="Sign up normally">
+    Create your account through the regular sign-up flow.
+  </Step>
+  
+  <Step title="Get your user ID">
+    Sign in and check your user profile, or query the database for your user record.
+  </Step>
+  
+  <Step title="Run createAdmin mutation">
+    Go to [Convex Dashboard](https://dashboard.convex.dev) → Functions → Run the `auth:createAdmin` internal mutation:
+    
+    ```json
+    {
+      "userId": "your-user-id-here"
+    }
+    ```
+  </Step>
+  
+  <Step title="Verify admin access">
+    Refresh the app and verify you have admin privileges.
+  </Step>
+</Steps>
+
+### Admin Management
+
+Once you're an admin, you can promote other users through the admin panel in the UI, or use the `setUserRole` mutation:
+
+```typescript
+import { api } from "@/convex/_generated/api";
+import { useMutation } from "convex/react";
+
+function PromoteUser() {
+  const setUserRole = useMutation(api.auth.setUserRole);
+  
+  const makeAdmin = async (userId: string) => {
+    await setUserRole({ userId, role: "admin" });
+  };
+}
+```
+
+From `auth.ts:235-265`:
+
+```typescript
+export const setUserRole = mutation({
+    args: {
+        userId: v.string(),
+        role: v.union(v.literal("admin"), v.literal("user")),
+    },
+    handler: async (ctx, args) => {
+        const admin = await requireAdmin(ctx);
+        // Updates or creates userRoles record
+    },
+});
+```
+
+<Warning>
+- Admins cannot delete their own accounts
+- At least one admin must always exist in the system
+- Admin actions are logged with `updatedBy` field
+</Warning>
+
+## User Roles
+
+Better Todo has two system-level roles:
+
+<ParamField path="admin" type="role">
+  Full system access, can manage all users, view admin dashboard, and perform destructive operations.
+</ParamField>
+
+<ParamField path="user" type="role">
+  Standard user with access to boards they're invited to. Default role for new signups.
+</ParamField>
+
+### Checking User Role
+
+From `auth.ts:184-194`:
+
+```typescript
+export const getMyRole = query({
+    args: {},
+    handler: async (ctx) => {
+        const user = await authComponent.safeGetAuthUser(ctx);
+        if (!user) {
+            return "user";
+        }
+        return (await isAdminUser(ctx, user._id)) ? "admin" : "user";
+    },
+});
+```
+
+## Security Best Practices
+
+<Steps>
+  <Step title="Use HTTPS in production">
+    Always set `SITE_URL` to an HTTPS URL for production deployments.
+  </Step>
+  
+  <Step title="Secure your secrets">
+    Never commit `GOOGLE_CLIENT_SECRET` or other credentials to version control.
+  </Step>
+  
+  <Step title="Configure trusted origins">
+    The auth system uses `trustedOrigins` to prevent CSRF attacks. Update `SITE_URL` for each environment.
+  </Step>
+  
+  <Step title="Review admin access regularly">
+    Periodically audit admin users and revoke access when no longer needed.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### Google OAuth Not Working
+
+1. Verify redirect URI matches exactly in Google Cloud Console
+2. Check that `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set correctly
+3. Ensure `SITE_URL` matches your application's actual URL
+
+### Session Not Persisting
+
+1. Check that cookies are enabled in the browser
+2. Verify `SITE_URL` is set correctly (HTTP vs HTTPS)
+3. Clear browser cookies and try again
+
+### Cannot Create Admin
+
+1. Verify the user ID is correct
+2. Run the `auth:createAdmin` mutation from Convex Dashboard
+3. Check that the mutation completed successfully without errors

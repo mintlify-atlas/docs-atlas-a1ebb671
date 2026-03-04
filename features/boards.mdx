@@ -1,0 +1,254 @@
+---
+title: Boards
+description: Create and manage boards to organize your projects and tasks
+---
+
+Boards are the foundation of Better Todo. Each board represents a project or workflow, containing lists and cards that help you organize and track work.
+
+## Creating a Board
+
+Create a new board to start organizing your tasks:
+
+```typescript
+const boardId = await createBoard({
+  title: "Product Launch",
+  description: "Q1 2026 Product Launch Planning",
+  color: "#6366f1",
+  visibility: "team"
+});
+```
+
+<Note>
+  When you create a board, you're automatically assigned as the **owner** with full control over the board.
+</Note>
+
+### Board Properties
+
+Boards in Better Todo support the following properties from the schema:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `title` | string | The board name (required) |
+| `description` | string | Optional board description |
+| `color` | string | Hex color or preset name for visual identification |
+| `backgroundUrl` | string | Custom background image URL |
+| `visibility` | enum | Access level: `private`, `team`, or `public` |
+| `workspaceId` | ID | Optional workspace assignment |
+| `archived` | boolean | Archive status |
+
+## Board Visibility Options
+
+Better Todo offers three visibility levels to control board access:
+
+<Accordion title="Private Boards">
+  **Private** boards are only accessible to members you explicitly invite. Perfect for personal projects or sensitive work.
+  
+  - Only invited members can view or access
+  - Full control over who can see the board
+  - Ideal for confidential projects
+</Accordion>
+
+<Accordion title="Team Boards">
+  **Team** boards are accessible to all members of your workspace. Great for collaborative team projects.
+  
+  - Visible to all workspace members
+  - Streamlined collaboration within teams
+  - Default option for team projects
+</Accordion>
+
+<Accordion title="Public Boards">
+  **Public** boards can be viewed by anyone with the link. Useful for open-source projects or public roadmaps.
+  
+  - Accessible via shareable link
+  - Read-only access for non-members
+  - Members can still be added for edit access
+</Accordion>
+
+## Board Members and Permissions
+
+Better Todo uses a role-based permission system with four distinct roles:
+
+<CardGroup cols={2}>
+  <Card title="Owner" icon="crown">
+    Full control over the board including deletion and member management. Only one owner per board.
+    
+    **Permissions:**
+    - Delete the board
+    - Manage all members
+    - Change member roles
+    - Full edit access
+  </Card>
+  
+  <Card title="Admin" icon="shield">
+    Can manage members and board settings. Multiple admins allowed per board.
+    
+    **Permissions:**
+    - Invite and remove members
+    - Update board settings
+    - Full edit access
+    - Cannot delete board
+  </Card>
+  
+  <Card title="Member" icon="user">
+    Standard access for creating and editing cards. The default role for most collaborators.
+    
+    **Permissions:**
+    - Create and edit cards
+    - Move cards between lists
+    - Comment and collaborate
+    - Cannot manage members
+  </Card>
+  
+  <Card title="Viewer" icon="eye">
+    Read-only access to view board content without making changes.
+    
+    **Permissions:**
+    - View all cards and lists
+    - See comments and activity
+    - Cannot create or edit
+    - Cannot move cards
+  </Card>
+</CardGroup>
+
+### Adding Members
+
+Invite team members to your board by email:
+
+```typescript
+// Invite by email - works for both registered and unregistered users
+await addMemberByEmail({
+  boardId: "board_id",
+  email: "teammate@example.com",
+  role: "member"
+});
+```
+
+<Note>
+  **Smart Invites**: Better Todo automatically detects if the email belongs to an existing user or sends a signup invitation for new users.
+</Note>
+
+For registered users:
+- Creates an in-app notification
+- Sends an email invitation via Resend
+- User can accept from the app or email link
+
+For unregistered users:
+- Generates a secure token-based invite
+- Sends a signup email with automatic board access
+- User is added to the board upon account creation
+
+### Managing Member Roles
+
+Only board owners can change member roles:
+
+```typescript
+await updateMemberRole({
+  boardId: "board_id",
+  userId: "user_id",
+  role: "admin"
+});
+```
+
+### Removing Members
+
+Admins and owners can remove members from boards:
+
+```typescript
+await removeMember({
+  boardId: "board_id",
+  userId: "user_id"
+});
+```
+
+<Note>
+  Board owners cannot be removed. Transfer ownership first if needed.
+</Note>
+
+## Archiving Boards
+
+Archive boards to hide them from your active workspace without permanently deleting:
+
+<Tabs>
+  <Tab title="Archive">
+    ```typescript
+    // Archive a board (owner only)
+    await archiveBoard({ boardId: "board_id" });
+    ```
+    
+    Archived boards:
+    - Are hidden from the main board list
+    - Retain all data (lists, cards, members)
+    - Can be restored at any time
+    - Only accessible via the "Archived" section
+  </Tab>
+  
+  <Tab title="Restore">
+    ```typescript
+    // Restore an archived board (owner only)
+    await restoreBoard({ boardId: "board_id" });
+    ```
+    
+    Restored boards:
+    - Reappear in the main board list
+    - Maintain all previous settings
+    - Keep all members and permissions
+    - Return to the same workspace
+  </Tab>
+  
+  <Tab title="Delete">
+    ```typescript
+    // Permanently delete a board (owner only)
+    await deleteBoard({ boardId: "board_id" });
+    ```
+    
+    <Warning>
+      Deletion is permanent and cannot be undone. All lists, cards, comments, and attachments will be deleted.
+    </Warning>
+  </Tab>
+</Tabs>
+
+## Updating Board Settings
+
+Update board properties at any time (requires admin or owner role):
+
+```typescript
+await updateBoard({
+  boardId: "board_id",
+  title: "Updated Project Name",
+  description: "New description",
+  color: "#8b5cf6",
+  visibility: "public"
+});
+```
+
+## Viewing Archived Items
+
+Access archived boards and cards:
+
+```typescript
+// Get all archived boards for current user
+const { boards, cards } = await getArchivedItems();
+
+// Get archived cards for a specific board
+const { cards } = await getArchivedItems({ boardId: "board_id" });
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Descriptive Names" icon="tag">
+    Give your boards clear, descriptive titles that indicate their purpose. This helps team members quickly identify the right board.
+  </Card>
+  
+  <Card title="Set Appropriate Visibility" icon="shield-check">
+    Choose visibility settings that match your security needs. Use private for sensitive work, team for internal projects.
+  </Card>
+  
+  <Card title="Assign Roles Carefully" icon="user-gear">
+    Give team members the minimum permissions they need. Most collaborators work well as Members.
+  </Card>
+  
+  <Card title="Archive, Don't Delete" icon="box-archive">
+    Archive completed projects instead of deleting them. You can always reference them later or restore if needed.
+  </Card>
+</CardGroup>

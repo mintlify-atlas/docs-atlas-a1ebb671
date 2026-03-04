@@ -1,0 +1,733 @@
+---
+title: 'Cards API'
+description: 'Complete API reference for managing cards in Better Todo'
+---
+
+# Cards API
+
+The Cards API provides full CRUD operations for managing cards (tasks) within lists on Better Todo boards. Cards support rich features including assignments, labels, checklists, due dates, priorities, and time tracking.
+
+## Card Schema
+
+Cards in Better Todo have the following properties:
+
+<ResponseField name="_id" type="Id<'cards'>" required>
+  Unique card identifier
+</ResponseField>
+
+<ResponseField name="listId" type="Id<'lists'>" required>
+  ID of the list containing this card
+</ResponseField>
+
+<ResponseField name="boardId" type="Id<'boards'>" required>
+  ID of the board (denormalized for easier queries)
+</ResponseField>
+
+<ResponseField name="title" type="string" required>
+  Card title
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Card description (supports markdown/rich text)
+</ResponseField>
+
+<ResponseField name="position" type="number" required>
+  Position for ordering within the list
+</ResponseField>
+
+<ResponseField name="coverImage" type="string">
+  URL of the card cover image
+</ResponseField>
+
+<ResponseField name="coverStorageId" type="Id<'_storage'>">
+  Convex storage ID for the cover image
+</ResponseField>
+
+<ResponseField name="dueDate" type="number">
+  Due date timestamp (milliseconds since epoch)
+</ResponseField>
+
+<ResponseField name="priority" type="'low' | 'medium' | 'high' | 'urgent'">
+  Card priority level
+</ResponseField>
+
+<ResponseField name="estimatedHours" type="number">
+  Estimated hours to complete the card
+</ResponseField>
+
+<ResponseField name="actualHours" type="number">
+  Actual hours spent on the card
+</ResponseField>
+
+<ResponseField name="createdBy" type="string" required>
+  User ID of the card creator
+</ResponseField>
+
+<ResponseField name="archived" type="boolean" required>
+  Whether the card is archived
+</ResponseField>
+
+<ResponseField name="completed" type="boolean" required>
+  Whether the card is marked as completed
+</ResponseField>
+
+<ResponseField name="createdAt" type="number" required>
+  Creation timestamp
+</ResponseField>
+
+<ResponseField name="updatedAt" type="number" required>
+  Last update timestamp
+</ResponseField>
+
+---
+
+## Queries
+
+### getById
+
+Retrieve a single card by ID with all associated details including labels, assignments, and checklists.
+
+<ParamField path="cardId" type="Id<'cards'>" required>
+  The unique identifier of the card to retrieve
+</ParamField>
+
+<ResponseField name="card" type="object">
+  The complete card object with all related data
+  
+  <Expandable title="properties">
+    <ResponseField name="...cardFields">
+      All standard card fields from the schema above
+    </ResponseField>
+    
+    <ResponseField name="labels" type="Label[]">
+      Array of label objects associated with this card
+    </ResponseField>
+    
+    <ResponseField name="assignments" type="CardAssignment[]">
+      Array of user assignments for this card
+    </ResponseField>
+    
+    <ResponseField name="checklists" type="ChecklistWithItems[]">
+      Array of checklists with their items, sorted by position
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { api } from "../convex/_generated/api";
+import { useQuery } from "convex/react";
+
+function CardDetails({ cardId }) {
+  const card = useQuery(api.cards.getById, { cardId });
+  
+  if (!card) return <div>Loading...</div>;
+  
+  return (
+    <div>
+      <h1>{card.title}</h1>
+      <p>{card.description}</p>
+      <div>Priority: {card.priority}</div>
+      <div>Labels: {card.labels.map(l => l.name).join(', ')}</div>
+      <div>Assigned to: {card.assignments.length} users</div>
+    </div>
+  );
+}
+```
+
+**Permissions:**
+- Requires authentication
+- User must be a member of the board
+
+**Errors:**
+- `"Unauthorized"` - User is not authenticated
+- `"Card not found"` - Card ID does not exist
+- `"Access denied"` - User does not have access to the board
+
+---
+
+### getAssignments
+
+Retrieve all user assignments for a specific card.
+
+<ParamField path="cardId" type="Id<'cards'>" required>
+  The unique identifier of the card
+</ParamField>
+
+<ResponseField name="assignments" type="CardAssignment[]">
+  Array of assignment objects
+  
+  <Expandable title="CardAssignment properties">
+    <ResponseField name="cardId" type="Id<'cards'>">
+      Card identifier
+    </ResponseField>
+    
+    <ResponseField name="userId" type="string">
+      Assigned user ID
+    </ResponseField>
+    
+    <ResponseField name="assignedAt" type="number">
+      Assignment timestamp
+    </ResponseField>
+    
+    <ResponseField name="assignedBy" type="string">
+      User ID who created the assignment
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { api } from "../convex/_generated/api";
+import { useQuery } from "convex/react";
+
+function CardAssignments({ cardId }) {
+  const assignments = useQuery(api.cards.getAssignments, { cardId });
+  
+  return (
+    <ul>
+      {assignments?.map(assignment => (
+        <li key={assignment._id}>
+          User: {assignment.userId}
+          Assigned: {new Date(assignment.assignedAt).toLocaleDateString()}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+**Permissions:**
+- Requires authentication
+- User must be a member of the board
+
+---
+
+## Mutations
+
+### create
+
+Create a new card in a list.
+
+<ParamField path="listId" type="Id<'lists'>" required>
+  The ID of the list where the card will be created
+</ParamField>
+
+<ParamField path="title" type="string" required>
+  The title of the new card
+</ParamField>
+
+<ResponseField name="card" type="Card">
+  The newly created card object
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { api } from "../convex/_generated/api";
+import { useMutation } from "convex/react";
+
+function CreateCardButton({ listId }) {
+  const createCard = useMutation(api.cards.create);
+  
+  const handleCreate = async () => {
+    const newCard = await createCard({
+      listId,
+      title: "New Task"
+    });
+    console.log("Created card:", newCard);
+  };
+  
+  return <button onClick={handleCreate}>Add Card</button>;
+}
+```
+
+**Behavior:**
+- Automatically sets the card position to be last in the list
+- Sets `archived` to `false` and `completed` to `false`
+- Records the current user as `createdBy`
+- Sets timestamps for `createdAt` and `updatedAt`
+
+**Permissions:**
+- Requires authentication
+- User must have at least "member" role (not "viewer")
+
+**Errors:**
+- `"Unauthorized"` - User is not authenticated
+- `"List not found"` - List ID does not exist
+- `"Insufficient permissions"` - User is a viewer
+
+---
+
+### update
+
+Update properties of an existing card.
+
+<ParamField path="cardId" type="Id<'cards'>" required>
+  The unique identifier of the card to update
+</ParamField>
+
+<ParamField path="title" type="string">
+  New card title
+</ParamField>
+
+<ParamField path="description" type="string">
+  New card description (markdown supported)
+</ParamField>
+
+<ParamField path="coverImage" type="string">
+  URL for the card cover image
+</ParamField>
+
+<ParamField path="dueDate" type="number">
+  Due date timestamp in milliseconds
+</ParamField>
+
+<ParamField path="priority" type="'low' | 'medium' | 'high' | 'urgent'">
+  Card priority level
+</ParamField>
+
+<ParamField path="estimatedHours" type="number">
+  Estimated hours to complete
+</ParamField>
+
+<ParamField path="actualHours" type="number">
+  Actual hours spent on the card
+</ParamField>
+
+<ParamField path="completed" type="boolean">
+  Mark card as completed or incomplete
+</ParamField>
+
+<ResponseField name="card" type="Card">
+  The updated card object
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { api } from "../convex/_generated/api";
+import { useMutation } from "convex/react";
+
+function UpdateCardForm({ cardId }) {
+  const updateCard = useMutation(api.cards.update);
+  
+  const handleUpdate = async () => {
+    const updated = await updateCard({
+      cardId,
+      title: "Updated Task Title",
+      description: "This is the new description",
+      priority: "high",
+      dueDate: Date.now() + 86400000, // Tomorrow
+      estimatedHours: 4
+    });
+    console.log("Updated card:", updated);
+  };
+  
+  return <button onClick={handleUpdate}>Update Card</button>;
+}
+```
+
+**Behavior:**
+- Only updates fields that are provided
+- Automatically updates the `updatedAt` timestamp
+- Omitted fields remain unchanged
+
+**Permissions:**
+- Requires authentication
+- User must have at least "member" role (not "viewer")
+
+---
+
+### move
+
+Move a card to a different list and/or position.
+
+<ParamField path="cardId" type="Id<'cards'>" required>
+  The unique identifier of the card to move
+</ParamField>
+
+<ParamField path="targetListId" type="Id<'lists'>" required>
+  The ID of the destination list
+</ParamField>
+
+<ParamField path="newPosition" type="number" required>
+  The new position in the target list (0-based)
+</ParamField>
+
+<ResponseField name="success" type="boolean">
+  Returns `true` if the move was successful
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { api } from "../convex/_generated/api";
+import { useMutation } from "convex/react";
+
+function MoveCard({ cardId, targetListId }) {
+  const moveCard = useMutation(api.cards.move);
+  
+  const handleMove = async () => {
+    await moveCard({
+      cardId,
+      targetListId,
+      newPosition: 0 // Move to top of list
+    });
+  };
+  
+  return <button onClick={handleMove}>Move to Top</button>;
+}
+```
+
+**Behavior:**
+- When moving between lists, automatically adjusts positions in both lists
+- When moving within the same list, reorders cards appropriately
+- Updates the `updatedAt` timestamp
+
+**Permissions:**
+- Requires authentication
+- User must have at least "member" role (not "viewer")
+
+**Errors:**
+- `"Card not found"` - Card ID does not exist
+- `"Target list not found"` - Target list ID does not exist
+
+---
+
+### archive
+
+Archive a card (soft delete).
+
+<ParamField path="cardId" type="Id<'cards'>" required>
+  The unique identifier of the card to archive
+</ParamField>
+
+<ResponseField name="success" type="boolean">
+  Returns `true` if archiving was successful
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { api } from "../convex/_generated/api";
+import { useMutation } from "convex/react";
+
+function ArchiveCardButton({ cardId }) {
+  const archiveCard = useMutation(api.cards.archive);
+  
+  const handleArchive = async () => {
+    await archiveCard({ cardId });
+    console.log("Card archived");
+  };
+  
+  return <button onClick={handleArchive}>Archive</button>;
+}
+```
+
+**Behavior:**
+- Sets the card's `archived` field to `true`
+- Updates the `updatedAt` timestamp
+- Archived cards are typically hidden from normal views
+
+**Permissions:**
+- Requires authentication
+- User must have at least "member" role (not "viewer")
+
+---
+
+### restore
+
+Restore an archived card.
+
+<ParamField path="cardId" type="Id<'cards'>" required>
+  The unique identifier of the card to restore
+</ParamField>
+
+<ResponseField name="success" type="boolean">
+  Returns `true` if restoration was successful
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { api } from "../convex/_generated/api";
+import { useMutation } from "convex/react";
+
+function RestoreCardButton({ cardId }) {
+  const restoreCard = useMutation(api.cards.restore);
+  
+  const handleRestore = async () => {
+    await restoreCard({ cardId });
+    console.log("Card restored");
+  };
+  
+  return <button onClick={handleRestore}>Restore</button>;
+}
+```
+
+**Behavior:**
+- Sets the card's `archived` field to `false`
+- Updates the `updatedAt` timestamp
+
+**Permissions:**
+- Requires authentication
+- User must have at least "member" role (not "viewer")
+
+---
+
+### duplicate
+
+Create a copy of an existing card in the same list.
+
+<ParamField path="cardId" type="Id<'cards'>" required>
+  The unique identifier of the card to duplicate
+</ParamField>
+
+<ResponseField name="card" type="Card">
+  The newly created duplicate card object
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { api } from "../convex/_generated/api";
+import { useMutation } from "convex/react";
+
+function DuplicateCardButton({ cardId }) {
+  const duplicateCard = useMutation(api.cards.duplicate);
+  
+  const handleDuplicate = async () => {
+    const newCard = await duplicateCard({ cardId });
+    console.log("Created duplicate:", newCard);
+  };
+  
+  return <button onClick={handleDuplicate}>Duplicate</button>;
+}
+```
+
+**Behavior:**
+- Copies all card properties from the original
+- Appends " (Copy)" to the title
+- Places the new card at the bottom of the same list
+- Sets the current user as `createdBy`
+- Creates new timestamps for `createdAt` and `updatedAt`
+- Does NOT copy labels, assignments, checklists, or comments
+
+**Permissions:**
+- Requires authentication
+- User must have at least "member" role (not "viewer")
+
+---
+
+### deleteCard
+
+Permanently delete a card and all associated data.
+
+<ParamField path="cardId" type="Id<'cards'>" required>
+  The unique identifier of the card to delete
+</ParamField>
+
+<ResponseField name="success" type="boolean">
+  Returns `true` if deletion was successful
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { api } from "../convex/_generated/api";
+import { useMutation } from "convex/react";
+
+function DeleteCardButton({ cardId }) {
+  const deleteCard = useMutation(api.cards.deleteCard);
+  
+  const handleDelete = async () => {
+    if (confirm("Are you sure? This cannot be undone.")) {
+      await deleteCard({ cardId });
+      console.log("Card permanently deleted");
+    }
+  };
+  
+  return <button onClick={handleDelete}>Delete</button>;
+}
+```
+
+**Behavior:**
+- Permanently removes the card from the database
+- Deletes all associated attachments from storage
+- Deletes the cover image from storage (if it exists)
+- This action cannot be undone
+
+**Permissions:**
+- Requires authentication
+- User must have "owner", "admin", or "member" role
+- Viewers cannot delete cards
+
+**Errors:**
+- `"Card not found"` - Card ID does not exist
+- `"Insufficient permissions"` - User lacks required role
+
+---
+
+### assignUser
+
+Assign a user to a card.
+
+<ParamField path="cardId" type="Id<'cards'>" required>
+  The unique identifier of the card
+</ParamField>
+
+<ParamField path="userId" type="string" required>
+  The user ID to assign to the card
+</ParamField>
+
+<ResponseField name="success" type="boolean">
+  Returns `true` if assignment was successful
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { api } from "../convex/_generated/api";
+import { useMutation } from "convex/react";
+
+function AssignUserButton({ cardId, userId }) {
+  const assignUser = useMutation(api.cards.assignUser);
+  
+  const handleAssign = async () => {
+    await assignUser({ cardId, userId });
+    console.log("User assigned");
+  };
+  
+  return <button onClick={handleAssign}>Assign User</button>;
+}
+```
+
+**Behavior:**
+- Creates a card assignment record
+- Sends an in-app notification to the assigned user
+- Sends an email notification to the assigned user (if email exists)
+- Records who made the assignment and when
+
+**Permissions:**
+- Requires authentication
+- User must have at least "member" role (not "viewer")
+
+**Errors:**
+- `"Card not found"` - Card ID does not exist
+- `"User already assigned to this card"` - Assignment already exists
+
+---
+
+### unassignUser
+
+Remove a user assignment from a card.
+
+<ParamField path="cardId" type="Id<'cards'>" required>
+  The unique identifier of the card
+</ParamField>
+
+<ParamField path="userId" type="string" required>
+  The user ID to unassign from the card
+</ParamField>
+
+<ResponseField name="success" type="boolean">
+  Returns `true` if unassignment was successful
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { api } from "../convex/_generated/api";
+import { useMutation } from "convex/react";
+
+function UnassignUserButton({ cardId, userId }) {
+  const unassignUser = useMutation(api.cards.unassignUser);
+  
+  const handleUnassign = async () => {
+    await unassignUser({ cardId, userId });
+    console.log("User unassigned");
+  };
+  
+  return <button onClick={handleUnassign}>Unassign</button>;
+}
+```
+
+**Behavior:**
+- Removes the card assignment record
+- Does not send notifications
+
+**Permissions:**
+- Requires authentication
+- User must have at least "member" role (not "viewer")
+
+**Errors:**
+- `"Card not found"` - Card ID does not exist
+- `"User not assigned to this card"` - No assignment exists
+
+---
+
+## Common Patterns
+
+### Creating a Card with Full Details
+
+```typescript
+const createCard = useMutation(api.cards.create);
+const updateCard = useMutation(api.cards.update);
+
+const createFullCard = async () => {
+  // First create the basic card
+  const card = await createCard({
+    listId: myListId,
+    title: "Design Homepage"
+  });
+  
+  // Then update with additional details
+  const fullCard = await updateCard({
+    cardId: card._id,
+    description: "Create wireframes and mockups for the new homepage",
+    priority: "high",
+    dueDate: Date.now() + 7 * 86400000, // 1 week from now
+    estimatedHours: 8
+  });
+  
+  return fullCard;
+};
+```
+
+### Drag and Drop Card Movement
+
+```typescript
+const moveCard = useMutation(api.cards.move);
+
+const handleDrop = async (cardId, targetListId, dropIndex) => {
+  await moveCard({
+    cardId,
+    targetListId,
+    newPosition: dropIndex
+  });
+};
+```
+
+### Bulk Assignment
+
+```typescript
+const assignUser = useMutation(api.cards.assignUser);
+
+const assignMultipleUsers = async (cardId, userIds) => {
+  await Promise.all(
+    userIds.map(userId => assignUser({ cardId, userId }))
+  );
+};
+```
+
+---
+
+## Related APIs
+
+- [Lists API](/api/lists) - Manage lists that contain cards
+- [Boards API](/api/boards) - Manage boards that contain lists
+- [Comments API](/api/comments) - Add comments to cards
+- [Members API](/api/members) - Manage board members and permissions

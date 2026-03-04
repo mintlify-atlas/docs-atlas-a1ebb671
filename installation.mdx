@@ -1,0 +1,443 @@
+---
+title: Installation
+description: Detailed installation guide for Better Todo including prerequisites, setup, and troubleshooting
+---
+
+# Installation Guide
+
+This comprehensive guide covers everything you need to know to install and configure Better Todo, from system prerequisites to advanced configuration options.
+
+## Prerequisites
+
+Before you begin, make sure you have the following installed on your system:
+
+### Required
+
+<CardGroup cols={2}>
+  <Card title="Bun" icon="package">
+    **Version 1.2.21 or later**
+    
+    Fast JavaScript runtime and package manager
+    
+    [Install Bun →](https://bun.sh)
+  </Card>
+  
+  <Card title="Node.js (Alternative)" icon="node-js">
+    **Version 18 or later**
+    
+    If you prefer npm/yarn over Bun
+    
+    [Install Node.js →](https://nodejs.org)
+  </Card>
+  
+  <Card title="Git" icon="code-branch">
+    **Version 2.x or later**
+    
+    For cloning the repository
+    
+    [Install Git →](https://git-scm.com)
+  </Card>
+  
+  <Card title="Convex Account" icon="database">
+    **Free account**
+    
+    Backend-as-a-Service platform
+    
+    [Sign up →](https://convex.dev)
+  </Card>
+</CardGroup>
+
+### Optional
+
+<AccordionGroup>
+  <Accordion title="Google OAuth Credentials">
+    Required if you want to enable Google authentication:
+    
+    1. Go to [Google Cloud Console](https://console.cloud.google.com)
+    2. Create a new project or select an existing one
+    3. Enable the Google+ API
+    4. Create OAuth 2.0 credentials
+    5. Add authorized redirect URI: `https://<your-deployment>.convex.site/api/auth/callback/google`
+    
+    You'll need:
+    - Client ID
+    - Client Secret
+  </Accordion>
+  
+  <Accordion title="Resend API Key">
+    Required for email notifications (board invites, @mentions):
+    
+    1. Sign up at [Resend](https://resend.com)
+    2. Create an API key
+    3. Verify your sending domain (or use the Resend testing domain)
+    
+    The app will work without this, but users won't receive email notifications.
+  </Accordion>
+</AccordionGroup>
+
+## System Requirements
+
+| Component | Minimum | Recommended |
+| --- | --- | --- |
+| CPU | 2 cores | 4+ cores |
+| RAM | 4 GB | 8+ GB |
+| Disk Space | 500 MB | 1 GB |
+| OS | macOS, Linux, Windows (WSL2) | macOS, Linux |
+
+<Tip>
+  While Better Todo can run on Windows, we recommend using WSL2 for the best development experience.
+</Tip>
+
+## Understanding the Monorepo Structure
+
+Better Todo uses Turborepo to manage a monorepo architecture. This provides several benefits:
+
+- **Shared code** - Common TypeScript configs, utilities, and types
+- **Parallel builds** - Build and test multiple packages simultaneously
+- **Smart caching** - Only rebuild what's changed
+- **Clear boundaries** - Separate concerns between frontend and backend
+
+### Project Structure
+
+```
+BetterTodo/
+├── apps/
+│   └── web/                    # React frontend (Vite + TanStack Router)
+│       ├── src/
+│       │   ├── components/     # Board, Card, List, UI components
+│       │   ├── routes/         # TanStack Router routes
+│       │   ├── lib/            # Auth client, utils, constants
+│       │   └── types/          # Shared TypeScript types
+│       └── package.json
+├── packages/
+│   ├── backend/                # Convex backend
+│   │   ├── convex/
+│   │   │   ├── auth.ts         # Better Auth config (email + Google)
+│   │   │   ├── boards.ts       # Board CRUD, members
+│   │   │   ├── lists.ts        # List CRUD, positions
+│   │   │   ├── cards.ts        # Card CRUD, assignments, move
+│   │   │   ├── labels.ts       # Label CRUD
+│   │   │   ├── checklists.ts   # Checklist CRUD
+│   │   │   ├── comments.ts     # Comment CRUD
+│   │   │   ├── emails.ts       # Resend email actions
+│   │   │   ├── notifications.ts
+│   │   │   └── schema.ts       # Convex database schema
+│   │   └── package.json
+│   ├── config/                 # Shared TypeScript config
+│   └── env/                    # Environment schema validation
+├── package.json                # Root workspace configuration
+├── turbo.json                  # Turborepo configuration
+└── README.md
+```
+
+<Note>
+  Each package in the monorepo is independently versioned and can be built/tested in isolation.
+</Note>
+
+## Installation Steps
+
+### Step 1: Clone the Repository
+
+```bash
+git clone https://github.com/yourusername/BetterTodo.git
+cd BetterTodo
+```
+
+### Step 2: Install Dependencies
+
+The root `package.json` defines workspace packages using Bun workspaces:
+
+<CodeGroup>
+```bash Bun (Recommended)
+bun install
+```
+
+```bash npm
+npm install
+```
+
+```bash yarn
+yarn install
+```
+</CodeGroup>
+
+This will install all dependencies for every package in the monorepo.
+
+<Tip>
+  Bun is 10-20x faster than npm for installing dependencies. The project is configured to use Bun 1.2.21 via the `packageManager` field.
+</Tip>
+
+### Step 3: Set Up Convex
+
+The backend uses Convex for real-time data synchronization and serverless functions.
+
+#### Automated Setup (Recommended)
+
+```bash
+bun run dev:setup
+```
+
+This runs the script defined in `packages/backend/package.json`:
+
+```json
+"dev:setup": "convex dev --configure --until-success"
+```
+
+The script will:
+1. Prompt you to create a new Convex project
+2. Generate `packages/backend/.env.local` with your deployment URL
+3. Start the Convex development server
+4. Watch for schema and function changes
+
+#### Manual Setup
+
+If you prefer manual setup:
+
+```bash
+cd packages/backend
+npx convex dev --configure
+```
+
+<Warning>
+  The first time you run this, you'll need to authenticate with Convex using `npx convex dev --login`.
+</Warning>
+
+### Step 4: Configure Environment Variables
+
+Better Todo requires several environment variables for full functionality.
+
+#### Backend Configuration (Convex)
+
+Set these in your Convex project via the dashboard or CLI:
+
+```bash
+# Required: Base URL for your application
+npx convex env set SITE_URL "http://localhost:3001"
+
+# Optional: Google OAuth
+npx convex env set GOOGLE_CLIENT_ID "your-google-client-id"
+npx convex env set GOOGLE_CLIENT_SECRET "your-google-client-secret"
+
+# Optional: Email notifications via Resend
+npx convex env set RESEND_API_KEY "re_your_resend_api_key"
+npx convex env set FROM_EMAIL "noreply@yourdomain.com"
+```
+
+<Accordion title="View all environment variables">
+  | Variable | Required | Description |
+  | --- | --- | --- |
+  | `SITE_URL` | Yes | Your application's base URL |
+  | `GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
+  | `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |
+  | `RESEND_API_KEY` | No | Resend API key for emails |
+  | `FROM_EMAIL` | No | Sender email address |
+</Accordion>
+
+#### Frontend Configuration
+
+The frontend automatically reads the Convex deployment URL from the backend's `.env.local`. If you need to override this:
+
+```bash
+# apps/web/.env
+VITE_CONVEX_URL=https://your-deployment.convex.cloud
+```
+
+### Step 5: Verify Installation
+
+Check that everything is installed correctly:
+
+<CodeGroup>
+```bash Check Bun version
+bun --version
+# Should output 1.2.21 or later
+```
+
+```bash Check TypeScript
+bun run check-types
+# Should complete without errors
+```
+
+```bash Check Convex connection
+cd packages/backend
+npx convex dev --once
+# Should connect and sync schema
+```
+</CodeGroup>
+
+## Database Schema
+
+Better Todo uses Convex's schema system defined in `packages/backend/convex/schema.ts`. The schema includes:
+
+<AccordionGroup>
+  <Accordion title="Core Tables">
+    - **boards** - Top-level organizational units with visibility settings
+    - **lists** - Vertical columns within boards
+    - **cards** - Individual tasks with rich metadata
+  </Accordion>
+  
+  <Accordion title="Collaboration">
+    - **boardMembers** - User permissions (owner, admin, member, viewer)
+    - **cardAssignments** - Assign users to specific cards
+    - **boardInvites** - Invite system with email notifications
+  </Accordion>
+  
+  <Accordion title="Card Details">
+    - **labels** - Color-coded tags for cards
+    - **cardLabels** - Many-to-many relationship
+    - **checklists** - Task lists within cards
+    - **checklistItems** - Individual checklist items
+    - **comments** - Threaded discussions
+    - **attachments** - File uploads via Convex storage
+  </Accordion>
+  
+  <Accordion title="Features">
+    - **notifications** - In-app notification system
+    - **presence** - Real-time user presence and cursors
+    - **workspaces** - Group multiple boards (future feature)
+    - **userRoles** - Admin role management
+  </Accordion>
+</AccordionGroup>
+
+<Tip>
+  The schema is automatically synced when you run `convex dev`. Changes to the schema will be applied in real-time during development.
+</Tip>
+
+## Running the Application
+
+Once installation is complete, start the development servers:
+
+```bash
+bun run dev
+```
+
+This uses Turborepo to run the `dev` script in all workspace packages in parallel:
+- Frontend at http://localhost:3001
+- Convex backend with hot reloading
+
+### Individual Services
+
+You can also run services independently:
+
+<CodeGroup>
+```bash Frontend only
+bun run dev:web
+```
+
+```bash Backend only
+bun run dev:server
+```
+</CodeGroup>
+
+## Troubleshooting
+
+### Common Issues
+
+<AccordionGroup>
+  <Accordion title="Installation fails with Bun">
+    **Problem**: Dependencies fail to install
+    
+    **Solutions**:
+    1. Update Bun: `bun upgrade`
+    2. Clear cache: `bun pm cache rm`
+    3. Try with legacy flags: `bun install --no-cache`
+    4. Fall back to npm: `npm install`
+  </Accordion>
+  
+  <Accordion title="Convex authentication errors">
+    **Problem**: Can't authenticate with Convex
+    
+    **Solutions**:
+    1. Log in explicitly: `npx convex dev --login`
+    2. Check your internet connection
+    3. Verify you're not behind a corporate proxy
+    4. Try clearing credentials: `rm -rf ~/.convex`
+  </Accordion>
+  
+  <Accordion title="TypeScript errors in IDE">
+    **Problem**: IDE shows type errors but build succeeds
+    
+    **Solutions**:
+    1. Restart TypeScript server in your IDE
+    2. Delete `.turbo` cache: `rm -rf .turbo`
+    3. Rebuild: `bun run build`
+    4. Check you're using TypeScript 5.9.3+
+  </Accordion>
+  
+  <Accordion title="Port conflicts">
+    **Problem**: Port 3001 already in use
+    
+    **Solutions**:
+    1. Kill existing process: `lsof -ti:3001 | xargs kill -9`
+    2. Change port in `apps/web/vite.config.ts`:
+    ```typescript
+    server: {
+      port: 3002 // or any available port
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Monorepo workspace issues">
+    **Problem**: Workspace packages not resolving
+    
+    **Solutions**:
+    1. Check `package.json` has correct `workspaces` config
+    2. Verify `workspace:*` protocols in dependencies
+    3. Delete all `node_modules`: `find . -name "node_modules" -type d -exec rm -rf {} +`
+    4. Reinstall: `bun install`
+  </Accordion>
+  
+  <Accordion title="Build fails in monorepo">
+    **Problem**: Turbo build errors
+    
+    **Solutions**:
+    1. Check `turbo.json` pipeline configuration
+    2. Build packages in order: `turbo run build --filter=@BetterTodo/backend && turbo run build --filter=web`
+    3. Clear Turbo cache: `turbo run build --force`
+  </Accordion>
+</AccordionGroup>
+
+### Getting Help
+
+If you're still experiencing issues:
+
+<CardGroup cols={2}>
+  <Card title="Check Documentation" icon="book">
+    Review the [Convex docs](https://docs.convex.dev) and [Bun docs](https://bun.sh/docs)
+  </Card>
+  
+  <Card title="Open an Issue" icon="github">
+    Report bugs on [GitHub Issues](https://github.com/yourusername/BetterTodo/issues)
+  </Card>
+  
+  <Card title="Join Discord" icon="discord">
+    Get community support on the Convex Discord
+  </Card>
+  
+  <Card title="Check Logs" icon="terminal">
+    Review console output for detailed error messages
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<Steps>
+  <Step title="Follow the Quickstart">
+    Complete the [quickstart guide](/quickstart) to create your first board
+  </Step>
+  
+  <Step title="Configure Authentication">
+    Set up Google OAuth and customize the auth flow
+  </Step>
+  
+  <Step title="Explore the Codebase">
+    Familiarize yourself with the project structure
+  </Step>
+  
+  <Step title="Deploy to Production">
+    Deploy to Vercel and configure your production Convex deployment
+  </Step>
+</Steps>
+
+<Note>
+  Development with Convex is free for up to 1 million function calls per month. Check [Convex pricing](https://www.convex.dev/pricing) for production usage.
+</Note>

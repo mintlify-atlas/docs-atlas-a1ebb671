@@ -1,0 +1,450 @@
+---
+title: 'API Overview'
+description: 'Complete guide to Better Todo Convex backend API'
+icon: 'code'
+---
+
+## Introduction
+
+Better Todo is built on [Convex](https://convex.dev), a real-time backend-as-a-service that provides type-safe APIs, automatic caching, and live query subscriptions. This architecture enables instant UI updates when data changes, making Better Todo feel responsive and collaborative.
+
+The backend API is organized into modules that handle different aspects of the application: boards, lists, cards, labels, checklists, comments, notifications, and attachments.
+
+## Architecture
+
+### Convex Backend Structure
+
+The Better Todo backend uses Convex's function-based architecture:
+
+- **Queries**: Read-only operations that automatically subscribe to data changes
+- **Mutations**: Write operations that modify data and trigger reactive updates
+- **Authentication**: Integration with Better Auth for secure user management
+- **Real-time Reactivity**: Automatic UI updates when underlying data changes
+
+### Core Modules
+
+<CardGroup cols={2}>
+  <Card title="Boards" icon="table-columns" href="/api/boards">
+    Create and manage boards, handle members and invitations
+  </Card>
+  <Card title="Lists" icon="list" href="/api/lists">
+    Organize cards into lists within boards
+  </Card>
+  <Card title="Cards" icon="rectangle-list" href="/api/cards">
+    Manage task cards with rich metadata and assignments
+  </Card>
+  <Card title="Members" icon="users" href="/api/members">
+    Add and manage board members with role-based permissions
+  </Card>
+  <Card title="Comments" icon="comments" href="/api/comments">
+    Collaborate with threaded comments and @mentions
+  </Card>
+  <Card title="Notifications" icon="bell" href="/api/notifications">
+    Receive real-time updates about board activity
+  </Card>
+</CardGroup>
+
+## How to Call Convex Functions
+
+### Setting Up the Client
+
+First, initialize the Convex client in your application:
+
+```typescript
+import { ConvexProvider, ConvexReactClient } from "convex/react";
+
+const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+
+function App() {
+  return (
+    <ConvexProvider client={convex}>
+      {/* Your app components */}
+    </ConvexProvider>
+  );
+}
+```
+
+### Using Queries (Real-time Data)
+
+Queries automatically subscribe to data changes and re-render components when data updates:
+
+```typescript
+import { useQuery } from "convex/react";
+import { api } from "@BetterTodo/backend/convex/_generated/api";
+
+function MyBoards() {
+  const boards = useQuery(api.boards.getAll);
+  
+  if (boards === undefined) return <div>Loading...</div>;
+  
+  return (
+    <div>
+      {boards.map(board => (
+        <div key={board._id}>{board.title}</div>
+      ))}
+    </div>
+  );
+}
+```
+
+### Using Mutations (Write Data)
+
+Mutations modify data on the server:
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@BetterTodo/backend/convex/_generated/api";
+
+function CreateBoard() {
+  const createBoard = useMutation(api.boards.create);
+  
+  const handleCreate = async () => {
+    await createBoard({
+      title: "My New Board",
+      description: "A board for tracking tasks",
+      color: "#3B82F6",
+      visibility: "private"
+    });
+  };
+  
+  return <button onClick={handleCreate}>Create Board</button>;
+}
+```
+
+### Queries with Arguments
+
+Pass arguments to queries for filtered or specific data:
+
+```typescript
+import { useQuery } from "convex/react";
+import { api } from "@BetterTodo/backend/convex/_generated/api";
+import type { Id } from "@BetterTodo/backend/convex/_generated/dataModel";
+
+function BoardDetails({ boardId }: { boardId: Id<"boards"> }) {
+  const board = useQuery(api.boards.getById, { boardId });
+  
+  if (!board) return <div>Board not found</div>;
+  
+  return (
+    <div>
+      <h1>{board.title}</h1>
+      {board.lists?.map(list => (
+        <div key={list._id}>{list.title}</div>
+      ))}
+    </div>
+  );
+}
+```
+
+## Authentication
+
+Better Todo uses [Better Auth](https://www.better-auth.com/) integrated with Convex for secure authentication.
+
+### How Authentication Works
+
+1. **User Login**: Users authenticate via email/password or OAuth (Google)
+2. **Session Management**: Better Auth manages sessions and tokens
+3. **Convex Integration**: Auth tokens are validated on every API call
+4. **User Context**: All queries and mutations have access to the authenticated user
+
+### Protected Endpoints
+
+All API endpoints require authentication. Unauthenticated requests will receive:
+
+```typescript
+throw new Error("Unauthorized");
+```
+
+### Getting Current User
+
+```typescript
+import { useQuery } from "convex/react";
+import { api } from "@BetterTodo/backend/convex/_generated/api";
+
+function UserProfile() {
+  const user = useQuery(api.auth.getCurrentUser);
+  
+  return user ? <div>Welcome, {user.name}</div> : null;
+}
+```
+
+### Authorization Levels
+
+Better Todo implements role-based permissions at the board level:
+
+- **Owner**: Full control, can delete board and manage all settings
+- **Admin**: Can manage members, edit board settings, and all content
+- **Member**: Can create and edit cards, lists, and comments
+- **Viewer**: Read-only access to board content
+
+<Note>
+Most mutations check user permissions before allowing operations. For example, only board owners can delete a board, while viewers cannot modify any content.
+</Note>
+
+## Real-time Reactivity
+
+One of Convex's most powerful features is automatic real-time updates.
+
+### How It Works
+
+When you use `useQuery`, Convex:
+
+1. Executes the query and returns initial results
+2. Subscribes to all database tables accessed during the query
+3. Automatically re-runs the query when relevant data changes
+4. Updates your React component with new data
+
+### Example: Live Board Updates
+
+```typescript
+// User A's component
+function BoardView({ boardId }: { boardId: Id<"boards"> }) {
+  const board = useQuery(api.boards.getById, { boardId });
+  // Automatically updates when User B creates a new list or card
+  return <div>{/* render board */}</div>;
+}
+
+// User B creates a new list
+const createList = useMutation(api.lists.create);
+await createList({ boardId, title: "New List" });
+// User A's component automatically re-renders with the new list
+```
+
+### Optimistic Updates
+
+For better UX, you can use optimistic updates:
+
+```typescript
+import { useConvex, useMutation } from "convex/react";
+
+const convex = useConvex();
+const updateCard = useMutation(api.cards.update);
+
+// Optimistically update UI before server confirms
+const optimisticUpdate = convex.optimisticUpdate(
+  () => updateCard({ cardId, title: "New Title" }),
+  {
+    // Define local state changes
+  }
+);
+```
+
+## Error Handling
+
+Convex functions throw JavaScript errors that propagate to your client:
+
+### Common Errors
+
+```typescript
+// Unauthorized access
+throw new Error("Unauthorized");
+
+// Resource not found
+throw new Error("Card not found");
+
+// Permission denied
+throw new Error("Insufficient permissions");
+
+// Already exists
+throw new Error("User already assigned to this card");
+```
+
+### Client-side Error Handling
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@BetterTodo/backend/convex/_generated/api";
+
+function CreateCard() {
+  const createCard = useMutation(api.cards.create);
+  
+  const handleCreate = async () => {
+    try {
+      await createCard({ listId, title: "New Task" });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === "Insufficient permissions") {
+          alert("You don't have permission to create cards");
+        } else {
+          alert("Failed to create card: " + error.message);
+        }
+      }
+    }
+  };
+  
+  return <button onClick={handleCreate}>Create Card</button>;
+}
+```
+
+## Available Modules
+
+### Boards Module
+
+Manage boards, members, and invitations.
+
+**Key Queries:**
+- `boards.getAll` - Get all boards for current user
+- `boards.getById` - Get board with lists and cards
+- `boards.getMembers` - Get board members with user details
+- `boards.getPendingInvites` - Get pending board invitations
+
+**Key Mutations:**
+- `boards.create` - Create a new board
+- `boards.update` - Update board details
+- `boards.addMemberByEmail` - Invite users to board
+- `boards.archive` - Archive a board
+- `boards.deleteBoard` - Permanently delete a board
+
+### Lists Module
+
+Organize cards into columns.
+
+**Key Mutations:**
+- `lists.create` - Create a new list
+- `lists.update` - Update list title or settings
+- `lists.updatePosition` - Reorder lists (drag & drop)
+- `lists.archive` - Archive a list
+- `lists.deleteList` - Delete list and all cards
+
+### Cards Module
+
+Manage individual task cards.
+
+**Key Queries:**
+- `cards.getById` - Get card with full details
+- `cards.getAssignments` - Get all assigned users
+
+**Key Mutations:**
+- `cards.create` - Create a new card
+- `cards.update` - Update card properties (title, description, due date, priority, etc.)
+- `cards.move` - Move card between lists or reorder
+- `cards.assignUser` - Assign user to card
+- `cards.archive` - Archive a card
+- `cards.duplicate` - Create a copy of a card
+- `cards.deleteCard` - Permanently delete a card
+
+### Labels Module
+
+Categorize and filter cards with colored labels.
+
+**Key Queries:**
+- `labels.getByBoard` - Get all labels for a board
+
+**Key Mutations:**
+- `labels.create` - Create a new label
+- `labels.update` - Update label name or color
+- `labels.addToCard` - Add label to a card
+- `labels.removeFromCard` - Remove label from a card
+- `labels.deleteLabel` - Delete a label
+
+### Checklists Module
+
+Add task items to cards for tracking progress.
+
+**Key Queries:**
+- `checklists.getByCard` - Get all checklists for a card
+
+**Key Mutations:**
+- `checklists.create` - Create a new checklist
+- `checklists.createItem` - Add item to checklist
+- `checklists.updateItem` - Update item (title, completed status, assignee, due date)
+- `checklists.deleteItem` - Delete checklist item
+- `checklists.deleteChecklist` - Delete entire checklist
+
+### Comments Module
+
+Enable team collaboration with threaded comments.
+
+**Key Queries:**
+- `comments.getByCard` - Get all comments for a card
+
+**Key Mutations:**
+- `comments.create` - Add a comment (supports @mentions)
+- `comments.update` - Edit a comment
+- `comments.deleteComment` - Delete a comment
+
+<Note>
+The comments module automatically detects @mentions in comment text and sends notifications to mentioned users.
+</Note>
+
+### Notifications Module
+
+Real-time notifications for board activity.
+
+**Key Queries:**
+- `notifications.getAll` - Get recent notifications (last 50)
+- `notifications.getUnreadCount` - Get count of unread notifications
+
+**Key Mutations:**
+- `notifications.markAsRead` - Mark notification as read
+- `notifications.markAllAsRead` - Mark all notifications as read
+- `notifications.deleteNotification` - Delete a notification
+
+**Notification Types:**
+- `board_invite` - Invited to a board
+- `assignment` - Assigned to a card
+- `mention` - Mentioned in a comment
+
+### Attachments Module
+
+Upload and manage files attached to cards.
+
+**Key Queries:**
+- `attachments.getByCard` - Get all attachments with download URLs
+
+**Key Mutations:**
+- `attachments.addAttachment` - Upload a new file
+- `attachments.setAsCover` - Set image as card cover
+- `attachments.removeCover` - Remove card cover
+- `attachments.deleteAttachment` - Delete attachment and file
+
+## Type Safety
+
+Convex provides full TypeScript support with generated types:
+
+```typescript
+import type { Id } from "@BetterTodo/backend/convex/_generated/dataModel";
+import { api } from "@BetterTodo/backend/convex/_generated/api";
+
+// IDs are strongly typed
+const boardId: Id<"boards"> = "...";
+const cardId: Id<"cards"> = "...";
+
+// API calls are type-checked
+const board = useQuery(api.boards.getById, { 
+  boardId // Type error if wrong type
+});
+
+// Mutations have typed arguments
+const createCard = useMutation(api.cards.create);
+await createCard({
+  listId: "...", // Type error if missing required fields
+  title: "My Task"
+});
+```
+
+## Rate Limits and Performance
+
+Convex handles caching and performance optimization automatically:
+
+- **Automatic Caching**: Query results are cached and shared across components
+- **Efficient Updates**: Only changed data is transmitted to clients
+- **Batching**: Multiple mutations can be batched in a single transaction
+- **No Rate Limits**: Convex scales automatically (within plan limits)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Explore Boards API" icon="table-columns" href="/api/boards">
+    Learn how to create and manage boards
+  </Card>
+  <Card title="Working with Cards" icon="rectangle-list" href="/api/cards">
+    Create tasks and manage card lifecycle
+  </Card>
+  <Card title="Authentication Guide" icon="lock" href="/configuration/authentication">
+    Deep dive into Better Auth integration
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get started with Better Todo
+  </Card>
+</CardGroup>

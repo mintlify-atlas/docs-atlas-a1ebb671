@@ -1,0 +1,321 @@
+---
+title: 'Comments'
+description: 'Create, update, and manage card comments with threading and mentions'
+icon: 'comments'
+---
+
+## Overview
+
+The comments API enables collaborative discussions on cards. Features include:
+
+- Add comments to any card
+- Thread comments with parent-child relationships
+- Mention users with `@name` syntax
+- Automatic notifications for mentions
+- Edit and delete your own comments
+- Rich text/markdown content support
+
+## Queries
+
+### getByCard
+
+Retrieve all comments for a specific card, sorted chronologically.
+
+<ParamField path="cardId" type="Id<'cards'>" required>
+  The unique identifier of the card
+</ParamField>
+
+<ResponseField name="comments" type="Array<object>">
+  Array of comments sorted by creation time (oldest first)
+  
+  <ResponseField name="_id" type="Id<'comments'>">
+    Unique identifier for the comment
+  </ResponseField>
+  
+  <ResponseField name="cardId" type="Id<'cards'>">
+    The card this comment belongs to
+  </ResponseField>
+  
+  <ResponseField name="userId" type="string">
+    Better Auth user ID of the comment author
+  </ResponseField>
+  
+  <ResponseField name="content" type="string">
+    Comment text (supports markdown/rich text)
+  </ResponseField>
+  
+  <ResponseField name="parentCommentId" type="Id<'comments'> | undefined">
+    ID of parent comment for threaded replies (undefined for top-level comments)
+  </ResponseField>
+  
+  <ResponseField name="edited" type="boolean">
+    Whether the comment has been edited after creation
+  </ResponseField>
+  
+  <ResponseField name="createdAt" type="number">
+    Timestamp when the comment was created
+  </ResponseField>
+  
+  <ResponseField name="updatedAt" type="number">
+    Timestamp of last update (equals createdAt if never edited)
+  </ResponseField>
+</ResponseField>
+
+**Example Response:**
+
+```json
+[
+  {
+    "_id": "k8x...",
+    "cardId": "j2h...",
+    "userId": "user_abc123",
+    "content": "@Sarah can you review this before EOD?",
+    "parentCommentId": undefined,
+    "edited": false,
+    "createdAt": 1709567890000,
+    "updatedAt": 1709567890000
+  },
+  {
+    "_id": "m3f...",
+    "cardId": "j2h...",
+    "userId": "user_xyz789",
+    "content": "Sure thing! I'll take a look in the next hour.",
+    "parentCommentId": "k8x...",
+    "edited": false,
+    "createdAt": 1709568120000,
+    "updatedAt": 1709568120000
+  }
+]
+```
+
+**Errors:**
+- `"Unauthorized"` - Not authenticated
+- `"Card not found"` - Invalid card ID
+- `"Access denied"` - User is not a member of the board
+
+## Mutations
+
+### create
+
+Add a new comment to a card with optional threading and automatic mention detection.
+
+<ParamField path="cardId" type="Id<'cards'>" required>
+  The card to comment on
+</ParamField>
+
+<ParamField path="content" type="string" required>
+  The comment text (supports markdown/rich text)
+</ParamField>
+
+<ParamField path="parentCommentId" type="Id<'comments'>" optional>
+  Parent comment ID for threaded replies (omit for top-level comments)
+</ParamField>
+
+**Mention Detection:**
+
+The system automatically detects `@mentions` in comment content using the pattern `@Name`. When mentions are found:
+
+1. Searches for matching board members by name
+2. Creates in-app notifications for mentioned users
+3. Notifies: `"[Your Name] mentioned you in '[Card Title]'"`
+4. Includes deep link to the card
+
+**Example with mentions:**
+
+```typescript
+// This comment will notify users named John and Sarah
+const comment = await create({
+  cardId: "j2h...",
+  content: "@John and @Sarah - please review the latest designs"
+});
+```
+
+**Returns:** The created comment object
+
+```typescript
+{
+  _id: Id<"comments">,
+  cardId: Id<"cards">,
+  userId: string,
+  content: string,
+  parentCommentId?: Id<"comments">,
+  edited: false,
+  createdAt: number,
+  updatedAt: number
+}
+```
+
+**Errors:**
+- `"Unauthorized"` - Not authenticated
+- `"Card not found"` - Invalid card ID
+- `"Access denied"` - User is not a board member
+
+### update
+
+Edit an existing comment. Only the comment author can update their comments.
+
+<ParamField path="commentId" type="Id<'comments'>" required>
+  The unique identifier of the comment to update
+</ParamField>
+
+<ParamField path="content" type="string" required>
+  The new comment text
+</ParamField>
+
+**Behavior:**
+- Sets `edited: true` on the comment
+- Updates `updatedAt` timestamp
+- Does not re-trigger mention notifications
+
+**Returns:** The updated comment object
+
+**Errors:**
+- `"Unauthorized"` - Not authenticated
+- `"Comment not found"` - Invalid comment ID
+- `"You can only edit your own comments"` - User is not the comment author
+
+### deleteComment
+
+Delete a comment. Can be deleted by:
+- The comment author
+- Board admins
+- Board owners
+
+<ParamField path="commentId" type="Id<'comments'>" required>
+  The unique identifier of the comment to delete
+</ParamField>
+
+**Returns:** `{ success: true }`
+
+**Errors:**
+- `"Unauthorized"` - Not authenticated
+- `"Comment not found"` - Invalid comment ID
+- `"Card not found"` - Associated card not found
+- `"Insufficient permissions"` - User lacks delete permissions
+
+## Comment Threading
+
+Comments support a parent-child relationship for threaded discussions:
+
+**Top-level comment:**
+```typescript
+const parent = await create({
+  cardId: "j2h...",
+  content: "What's the status on this?"
+  // No parentCommentId = top-level
+});
+```
+
+**Reply to comment:**
+```typescript
+const reply = await create({
+  cardId: "j2h...",
+  content: "Still in progress, finishing up tests",
+  parentCommentId: parent._id  // Links to parent
+});
+```
+
+**Querying threads:**
+
+Use `getByCard` to fetch all comments, then organize by `parentCommentId` in your UI:
+
+```typescript
+const allComments = await getByCard({ cardId });
+
+// Separate top-level and replies
+const topLevel = allComments.filter(c => !c.parentCommentId);
+const replies = allComments.filter(c => c.parentCommentId);
+
+// Group replies by parent
+const threaded = topLevel.map(parent => ({
+  ...parent,
+  replies: replies.filter(r => r.parentCommentId === parent._id)
+}));
+```
+
+## Mentions & Notifications
+
+### Mention Syntax
+
+Use `@name` to mention board members in comments:
+
+```typescript
+// Single mention
+"@John can you take a look at this?"
+
+// Multiple mentions
+"@Sarah and @Mike - let's sync on this tomorrow"
+
+// In context
+"Great work @Team! The design looks perfect."
+```
+
+### Matching Behavior
+
+The system matches mentions against board members' names and emails:
+
+- Case-insensitive partial matching
+- Matches if member name contains the mentioned text
+- Example: `@John` matches users named "John Smith", "Johnny", etc.
+- Ignores the commenter (you don't get notified for mentioning yourself)
+- Each user only notified once per comment (even with multiple mentions)
+
+### Notification Format
+
+When mentioned, users receive:
+
+**In-app notification:**
+```typescript
+{
+  type: "mention",
+  title: "You were mentioned",
+  message: "[Commenter Name] mentioned you in '[Card Title]'",
+  linkUrl: "/boards/[boardId]?card=[cardId]",
+  read: false
+}
+```
+
+## Schema Reference
+
+### Comments Table
+
+```typescript
+{
+  cardId: Id<"cards">,
+  userId: string,                    // Better Auth user ID
+  content: string,                   // Rich text/markdown supported
+  parentCommentId?: Id<"comments">,  // For threading
+  edited: boolean,
+  createdAt: number,
+  updatedAt: number
+}
+```
+
+**Indexes:**
+- `by_card`: Query all comments for a card
+- `by_user`: Query all comments by a specific user
+- `by_parent`: Query replies to a specific comment
+
+## Best Practices
+
+<Card title="Threading" icon="diagram-nested">
+  Use `parentCommentId` sparingly for direct replies. Deep nesting (replies to replies) can be difficult to display in UI. Consider limiting to one level of threading.
+</Card>
+
+<Card title="Mentions" icon="at">
+  Be specific with mentions to avoid notification fatigue. `@John Smith` is better than `@John` which might match multiple people.
+</Card>
+
+<Card title="Content" icon="text">
+  Support markdown in your UI to enable rich formatting. Store plain text with markdown syntax in the `content` field.
+</Card>
+
+<Card title="Pagination" icon="list">
+  For cards with many comments, consider implementing pagination or infinite scroll. The `getByCard` query returns all comments sorted chronologically.
+</Card>
+
+## Related Endpoints
+
+- [Board Members](/api/members) - Manage who can comment on your boards
+- [Cards](/api/cards) - The parent resource for comments
+- [Notifications](/api/notifications) - View mention notifications

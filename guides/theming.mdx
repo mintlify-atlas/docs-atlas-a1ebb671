@@ -1,0 +1,466 @@
+---
+title: 'Theming & Customization'
+description: 'Customize Better Todo with colors, fonts, and dark/light mode'
+icon: 'palette'
+---
+
+## Overview
+
+Better Todo uses a modern theming system built on TailwindCSS v4 with support for:
+- Dark and light mode
+- CSS custom properties for dynamic theming
+- shadcn/ui component styling
+- OKLCH color space for perceptual color accuracy
+
+## Theme Architecture
+
+The theming system is built with several layers:
+
+1. **CSS Custom Properties**: Define color tokens in `index.css`
+2. **TailwindCSS v4**: Provides utility classes via `@tailwindcss/vite`
+3. **next-themes**: Handles dark/light mode switching
+4. **shadcn/ui**: Pre-styled components that respect the theme
+
+## Dark and Light Mode
+
+### Theme Provider Setup
+
+Better Todo uses `next-themes` for theme management. The provider is configured in `apps/web/src/routes/__root.tsx`:
+
+```tsx
+import { ThemeProvider } from "@/components/theme-provider";
+
+function RootComponent() {
+  return (
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="dark"
+      disableTransitionOnChange
+      storageKey="vite-ui-theme"
+    >
+      {/* App content */}
+    </ThemeProvider>
+  );
+}
+```
+
+### Configuration Options
+
+- **`attribute="class"`**: Applies theme via `.dark` class on root element
+- **`defaultTheme="dark"`**: Sets dark mode as default
+- **`disableTransitionOnChange`**: Prevents flashing during theme switch
+- **`storageKey`**: localStorage key for persisting theme preference
+
+### Using the Theme Hook
+
+Access and control the theme in your components:
+
+```tsx
+import { useTheme } from "@/components/theme-provider";
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  
+  return (
+    <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+      Toggle theme
+    </button>
+  );
+}
+```
+
+<Note>
+  The `useTheme` hook provides `theme`, `setTheme`, `resolvedTheme`, and `systemTheme` values.
+</Note>
+
+## Color System
+
+### OKLCH Color Space
+
+Better Todo uses OKLCH (Oklab Lightness Chroma Hue) for better perceptual uniformity:
+
+```css
+--background: oklch(1 0 0);        /* Pure white */
+--foreground: oklch(0.145 0 0);    /* Near black */
+--primary: oklch(0.205 0 0);       /* Dark gray */
+```
+
+**Benefits of OKLCH:**
+- Perceptually uniform lightness
+- Wider color gamut than HSL
+- Better color interpolation
+- Consistent contrast ratios
+
+### Color Tokens
+
+The theme defines semantic color tokens in `apps/web/src/index.css`:
+
+<Accordion title="Background & Foreground">
+  ```css
+  :root {
+    --background: oklch(1 0 0);      /* Page background */
+    --foreground: oklch(0.145 0 0);  /* Primary text */
+  }
+  
+  .dark {
+    --background: oklch(0.145 0 0);  /* Dark background */
+    --foreground: oklch(0.985 0 0);  /* Light text */
+  }
+  ```
+</Accordion>
+
+<Accordion title="Primary & Secondary">
+  ```css
+  :root {
+    --primary: oklch(0.205 0 0);
+    --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.97 0 0);
+    --secondary-foreground: oklch(0.205 0 0);
+  }
+  ```
+  
+  Use for:
+  - Primary buttons and CTAs
+  - Secondary UI elements
+  - Accent colors
+</Accordion>
+
+<Accordion title="Muted & Accent">
+  ```css
+  :root {
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0);
+    --accent-foreground: oklch(0.205 0 0);
+  }
+  ```
+  
+  Use for:
+  - Disabled states
+  - Placeholder text
+  - Subtle backgrounds
+  - Hover states
+</Accordion>
+
+<Accordion title="Destructive">
+  ```css
+  :root {
+    --destructive: oklch(0.577 0.245 27.325);
+    --destructive-foreground: oklch(1 0 0);
+  }
+  
+  .dark {
+    --destructive: oklch(0.704 0.191 22.216);
+  }
+  ```
+  
+  Use for:
+  - Delete buttons
+  - Error messages
+  - Warning states
+</Accordion>
+
+<Accordion title="Borders & Inputs">
+  ```css
+  :root {
+    --border: oklch(0.922 0 0);
+    --input: oklch(0.922 0 0);
+    --ring: oklch(0.708 0 0);  /* Focus rings */
+  }
+  
+  .dark {
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+  }
+  ```
+</Accordion>
+
+### Using Color Tokens
+
+Access tokens via TailwindCSS utilities:
+
+```tsx
+<div className="bg-background text-foreground">
+  <button className="bg-primary text-primary-foreground">
+    Primary Button
+  </button>
+  <button className="bg-destructive text-destructive-foreground">
+    Delete
+  </button>
+</div>
+```
+
+## Customizing Colors
+
+### Changing Brand Colors
+
+To customize the primary color, modify the OKLCH values in `index.css`:
+
+<Steps>
+  <Step title="Choose Your Color">
+    Use a tool like [OKLCH Color Picker](https://oklch.com/) to select your brand color.
+    
+    Example: Blue primary color
+    ```
+    oklch(0.588 0.243 264.376)
+    ```
+  </Step>
+
+  <Step title="Update CSS Variables">
+    Update both light and dark mode:
+    
+    ```css
+    :root {
+      --primary: oklch(0.588 0.243 264.376);
+      --primary-foreground: oklch(1 0 0);
+    }
+    
+    .dark {
+      --primary: oklch(0.688 0.243 264.376);  /* Slightly lighter for dark mode */
+      --primary-foreground: oklch(0.145 0 0);
+    }
+    ```
+  </Step>
+
+  <Step title="Test Contrast">
+    Ensure sufficient contrast (WCAG AA: 4.5:1 minimum) between foreground and background.
+  </Step>
+</Steps>
+
+<Warning>
+  Always test your color changes in both dark and light modes to ensure readability.
+</Warning>
+
+### Creating Custom Color Tokens
+
+Add new semantic colors:
+
+```css
+:root {
+  --success: oklch(0.646 0.222 41.116);
+  --success-foreground: oklch(1 0 0);
+  --warning: oklch(0.828 0.189 84.429);
+  --warning-foreground: oklch(0.145 0 0);
+}
+
+@theme inline {
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+}
+```
+
+Then use them:
+
+```tsx
+<div className="bg-success text-success-foreground">
+  Success message
+</div>
+```
+
+## Typography
+
+### Font Configuration
+
+Better Todo uses system fonts for optimal performance:
+
+```css
+:root {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 
+    "Liberation Mono", "Courier New", monospace;
+}
+```
+
+### Customizing Fonts
+
+<Steps>
+  <Step title="Add Custom Font">
+    Install a font package or add font files:
+    
+    ```bash
+    npm install @fontsource/inter
+    ```
+  </Step>
+
+  <Step title="Import Font">
+    Import in your main CSS or component:
+    
+    ```css
+    @import "@fontsource/inter";
+    ```
+  </Step>
+
+  <Step title="Update CSS Variable">
+    ```css
+    :root {
+      --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+    }
+    ```
+  </Step>
+</Steps>
+
+### Using Font Utilities
+
+```tsx
+<div className="font-sans">  {/* Default */}
+  <h1 className="font-serif">Serif heading</h1>
+  <code className="font-mono">Monospace code</code>
+</div>
+```
+
+## Border Radius
+
+Customize the global border radius:
+
+```css
+:root {
+  --radius: 0.625rem;  /* Default: 10px */
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+}
+```
+
+Use in components:
+
+```tsx
+<div className="rounded-lg">    {/* Uses --radius-lg */}
+<div className="rounded-xl">    {/* Uses --radius-xl */}
+```
+
+## Shadows
+
+Customizable shadow system:
+
+```css
+:root {
+  --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
+  --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
+}
+```
+
+## shadcn/ui Component Theming
+
+shadcn/ui components automatically use your theme tokens. To customize individual components:
+
+### Example: Customizing Buttons
+
+```tsx
+import { Button } from "@/components/ui/button";
+
+<Button variant="default">   {/* Uses --primary */}
+<Button variant="destructive"> {/* Uses --destructive */}
+<Button variant="outline">     {/* Uses --border */}
+<Button variant="ghost">       {/* Transparent */}
+```
+
+### Overriding Component Styles
+
+Use TailwindCSS classes to override:
+
+```tsx
+<Button className="bg-blue-500 hover:bg-blue-600">
+  Custom color button
+</Button>
+```
+
+Or modify the component file directly in `apps/web/src/components/ui/`.
+
+## TailwindCSS v4 Configuration
+
+Better Todo uses TailwindCSS v4 via the Vite plugin:
+
+```typescript apps/web/vite.config.ts
+import tailwindcss from "@tailwindcss/vite";
+
+export default defineConfig({
+  plugins: [
+    tailwindcss(),
+    // ...
+  ],
+});
+```
+
+### Custom Variants
+
+Define custom variants in `index.css`:
+
+```css
+@custom-variant dark (&:is(.dark *));
+```
+
+This allows dark mode to work with class-based theme switching.
+
+## Animation
+
+Better Todo includes `tw-animate-css` for animation utilities:
+
+```css apps/web/src/index.css
+@import "tw-animate-css";
+```
+
+Use animations:
+
+```tsx
+<div className="animate-fade-in">
+<div className="animate-slide-up">
+```
+
+## Best Practices
+
+<Accordion title="Use Semantic Tokens">
+  Always use semantic color tokens (`bg-primary`, `text-foreground`) instead of hardcoded colors.
+  
+  ```tsx
+  ✅ <div className="bg-primary text-primary-foreground">
+  ❌ <div className="bg-black text-white">
+  ```
+</Accordion>
+
+<Accordion title="Test Both Themes">
+  Always verify your UI in both dark and light modes during development.
+</Accordion>
+
+<Accordion title="Maintain Contrast">
+  Use tools like [WebAIM Contrast Checker](https://webaim.org/resources/contrastchecker/) to ensure accessibility.
+</Accordion>
+
+<Accordion title="Keep It Consistent">
+  Use the existing color tokens before creating new ones to maintain consistency.
+</Accordion>
+
+## Troubleshooting
+
+<Accordion title="Theme Not Persisting">
+  Check that `storageKey` is set in ThemeProvider and localStorage isn't blocked.
+</Accordion>
+
+<Accordion title="Colors Not Applying">
+  - Ensure TailwindCSS plugin is loaded in `vite.config.ts`
+  - Check that `index.css` is imported in your entry point
+  - Verify CSS custom properties are defined in `:root`
+</Accordion>
+
+<Accordion title="Dark Mode Not Working">
+  - Verify `attribute="class"` is set in ThemeProvider
+  - Check that `.dark` class is applied to root element
+  - Ensure dark mode CSS variables are defined
+</Accordion>
+
+## Resources
+
+- [TailwindCSS v4 Documentation](https://tailwindcss.com/docs)
+- [next-themes Documentation](https://github.com/pacocoursey/next-themes)
+- [shadcn/ui Theming](https://ui.shadcn.com/docs/theming)
+- [OKLCH Color Picker](https://oklch.com/)
+- [WebAIM Contrast Checker](https://webaim.org/resources/contrastchecker/)

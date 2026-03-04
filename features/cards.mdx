@@ -1,0 +1,372 @@
+---
+title: Cards
+description: Create, organize, and manage cards to track individual tasks and work items
+---
+
+Cards are the core work items in Better Todo. Each card represents a task, feature, bug, or any trackable item within your project.
+
+## Creating Cards
+
+Create a new card within any list:
+
+```typescript
+const card = await createCard({
+  listId: "list_id",
+  title: "Implement user authentication"
+});
+```
+
+<Note>
+  Cards are created at the bottom of the list by default. The position is automatically calculated based on existing cards.
+</Note>
+
+## Card Properties
+
+Better Todo cards support a rich set of properties from the schema:
+
+### Core Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `title` | string | Card title (required) |
+| `description` | string | Rich text/markdown description |
+| `position` | number | Position within the list for ordering |
+| `completed` | boolean | Completion status |
+| `archived` | boolean | Archive status |
+
+### Visual Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `coverImage` | string | URL for card cover image |
+| `coverStorageId` | ID | Convex storage ID for uploaded covers |
+
+### Planning Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `dueDate` | number | Due date timestamp |
+| `priority` | enum | Priority level: `low`, `medium`, `high`, `urgent` |
+| `estimatedHours` | number | Estimated time to complete |
+| `actualHours` | number | Actual time spent |
+
+## Updating Cards
+
+Update any card property:
+
+```typescript
+await updateCard({
+  cardId: "card_id",
+  title: "Updated task title",
+  description: "Detailed description with **markdown** support",
+  dueDate: Date.now() + (7 * 24 * 60 * 60 * 1000), // 7 days from now
+  priority: "high",
+  estimatedHours: 8
+});
+```
+
+<Accordion title="Rich Text Descriptions">
+  Card descriptions support markdown formatting:
+  
+  - **Bold** and *italic* text
+  - Lists (ordered and unordered)
+  - Links with automatic previews
+  - Code blocks
+  - Headers and formatting
+</Accordion>
+
+## Priority Levels
+
+Better Todo supports four priority levels to help you manage urgency:
+
+<CardGroup cols={2}>
+  <Card title="Low Priority" icon="circle" color="#059669">
+    Tasks that are nice to have but not time-sensitive.
+  </Card>
+  
+  <Card title="Medium Priority" icon="circle" color="#0284c7">
+    Standard priority for regular work items.
+  </Card>
+  
+  <Card title="High Priority" icon="circle" color="#f59e0b">
+    Important tasks that should be addressed soon.
+  </Card>
+  
+  <Card title="Urgent Priority" icon="circle" color="#ef4444">
+    Critical tasks requiring immediate attention.
+  </Card>
+</CardGroup>
+
+## Card Cover Images
+
+Add visual appeal and quick identification with cover images:
+
+<Tabs>
+  <Tab title="Upload">
+    Upload custom images as card covers using Convex storage:
+    
+    ```typescript
+    // Upload file and set as cover
+    const storageId = await storage.store(file);
+    await updateCard({
+      cardId: "card_id",
+      coverStorageId: storageId
+    });
+    ```
+  </Tab>
+  
+  <Tab title="URL">
+    Use external image URLs:
+    
+    ```typescript
+    await updateCard({
+      cardId: "card_id",
+      coverImage: "https://example.com/image.jpg"
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## Checklists
+
+Break down complex tasks into manageable steps with checklists:
+
+### Creating Checklists
+
+```typescript
+const checklist = await createChecklist({
+  cardId: "card_id",
+  title: "Setup Tasks"
+});
+```
+
+### Adding Checklist Items
+
+```typescript
+const item = await createChecklistItem({
+  checklistId: "checklist_id",
+  title: "Install dependencies"
+});
+```
+
+### Checklist Features
+
+<Accordion title="Progress Tracking">
+  Checklists automatically calculate completion percentage:
+  
+  - Visual progress bar
+  - Completed vs. total items count
+  - Real-time updates as items are checked
+</Accordion>
+
+<Accordion title="Item Assignment">
+  Checklist items can be assigned to specific team members:
+  
+  ```typescript
+  await updateChecklistItem({
+    itemId: "item_id",
+    assignedTo: "user_id"
+  });
+  ```
+</Accordion>
+
+<Accordion title="Item Due Dates">
+  Individual checklist items support their own due dates:
+  
+  ```typescript
+  await updateChecklistItem({
+    itemId: "item_id",
+    dueDate: timestamp
+  });
+  ```
+</Accordion>
+
+### Managing Checklists
+
+```typescript
+// Toggle item completion
+await updateChecklistItem({
+  itemId: "item_id",
+  completed: true
+});
+
+// Delete item
+await deleteChecklistItem({ itemId: "item_id" });
+
+// Delete entire checklist
+await deleteChecklist({ checklistId: "checklist_id" });
+```
+
+## Labels
+
+Organize and categorize cards with colored labels:
+
+### Creating Labels
+
+```typescript
+const label = await createLabel({
+  boardId: "board_id",
+  name: "Bug",
+  color: "#ef4444"
+});
+```
+
+### Applying Labels to Cards
+
+```typescript
+await addLabelToCard({
+  cardId: "card_id",
+  labelId: "label_id"
+});
+```
+
+<Note>
+  Labels are board-scoped, meaning they can be reused across all cards on the same board.
+</Note>
+
+## Attachments
+
+Attach files to cards for documentation and resources:
+
+```typescript
+// Upload and attach file
+const attachment = await addAttachment({
+  cardId: "card_id",
+  fileName: "design.pdf",
+  storageId: storageId,
+  fileSize: 1024000,
+  mimeType: "application/pdf"
+});
+```
+
+### Attachment Schema
+
+Attachments track the following information:
+
+- `fileName`: Original file name
+- `storageId`: Convex storage reference
+- `fileSize`: Size in bytes
+- `mimeType`: File type
+- `uploadedBy`: User who uploaded the file
+- `createdAt`: Upload timestamp
+
+<Note>
+  Attachments are stored using Convex's file storage and are automatically deleted when the card is deleted.
+</Note>
+
+## Moving Cards
+
+Move cards between lists or reorder within a list:
+
+```typescript
+await moveCard({
+  cardId: "card_id",
+  targetListId: "new_list_id",
+  newPosition: 2
+});
+```
+
+<Accordion title="Position Calculation">
+  Better Todo automatically handles position updates:
+  
+  - When moving to a different list, positions in both lists are recalculated
+  - When reordering within the same list, only affected cards are updated
+  - Positions are maintained even with concurrent updates
+</Accordion>
+
+## Card Operations
+
+<Tabs>
+  <Tab title="Archive">
+    Archive cards to remove them from view without deleting:
+    
+    ```typescript
+    await archiveCard({ cardId: "card_id" });
+    ```
+    
+    Archived cards:
+    - Are hidden from the board view
+    - Retain all data and relationships
+    - Can be restored to any list
+  </Tab>
+  
+  <Tab title="Restore">
+    Restore archived cards back to the board:
+    
+    ```typescript
+    await restoreCard({ cardId: "card_id" });
+    ```
+    
+    Cards are restored to their original list position.
+  </Tab>
+  
+  <Tab title="Duplicate">
+    Create a copy of an existing card:
+    
+    ```typescript
+    const newCard = await duplicateCard({ cardId: "card_id" });
+    ```
+    
+    Duplicated cards:
+    - Copy all properties (title, description, priority, etc.)
+    - Are placed at the bottom of the same list
+    - Get "(Copy)" appended to the title
+    - Do not copy assignments or comments
+  </Tab>
+  
+  <Tab title="Delete">
+    Permanently delete a card:
+    
+    ```typescript
+    await deleteCard({ cardId: "card_id" });
+    ```
+    
+    <Warning>
+      Deletion is permanent and removes all associated data including comments, attachments, and checklist items.
+    </Warning>
+  </Tab>
+</Tabs>
+
+## Card Details View
+
+Retrieve full card details including related data:
+
+```typescript
+const card = await getCardById({ cardId: "card_id" });
+
+// Returns:
+// {
+//   ...cardProperties,
+//   labels: [...],
+//   assignments: [...],
+//   checklists: [{ ...checklist, items: [...] }]
+// }
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Write Clear Titles" icon="text">
+    Use concise, action-oriented titles that describe what needs to be done. Start with verbs when possible.
+  </Card>
+  
+  <Card title="Add Descriptions" icon="align-left">
+    Include context, requirements, and acceptance criteria in the description to reduce back-and-forth.
+  </Card>
+  
+  <Card title="Set Due Dates" icon="calendar">
+    Add due dates to time-sensitive tasks to help prioritize work and avoid missing deadlines.
+  </Card>
+  
+  <Card title="Use Checklists" icon="check-square">
+    Break complex tasks into smaller checklist items for better progress tracking and clarity.
+  </Card>
+  
+  <Card title="Apply Labels" icon="tag">
+    Use labels consistently to categorize cards and enable quick filtering by type or category.
+  </Card>
+  
+  <Card title="Estimate Time" icon="clock">
+    Track estimated and actual hours to improve future planning and understand team capacity.
+  </Card>
+</CardGroup>

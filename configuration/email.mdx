@@ -1,0 +1,358 @@
+---
+title: Email Configuration
+description: Configure Resend for transactional emails including board invites and notifications
+---
+
+Better Todo uses [Resend](https://resend.com) to send transactional emails for board invitations, card assignments, and mentions.
+
+## Resend Setup
+
+### Getting an API Key
+
+<Steps>
+  <Step title="Create a Resend account">
+    Sign up at [resend.com](https://resend.com) if you don't have an account.
+  </Step>
+  
+  <Step title="Generate an API key">
+    Go to Settings → API Keys → Create API Key. Copy the key (it starts with `re_`).
+  </Step>
+  
+  <Step title="Configure environment variable">
+    Set the API key in Convex:
+    
+    ```bash
+    npx convex env set RESEND_API_KEY "re_your_api_key_here"
+    ```
+  </Step>
+</Steps>
+
+### FROM_EMAIL Configuration
+
+Configure the sender email address for all outgoing emails:
+
+```bash
+npx convex env set FROM_EMAIL "noreply@yourdomain.com"
+```
+
+<Warning>
+For production use, verify your domain in Resend to send from your own domain. Otherwise, emails will be sent from `onboarding@resend.dev`.
+</Warning>
+
+### Environment Variables
+
+<ParamField path="RESEND_API_KEY" type="string" required>
+  Your Resend API key. Starts with `re_`. Required for sending emails.
+</ParamField>
+
+<ParamField path="FROM_EMAIL" type="string" default="onboarding@resend.dev">
+  The email address that appears in the "From" field. Use a verified domain in production.
+</ParamField>
+
+## Email Templates
+
+Better Todo includes beautifully designed, responsive email templates with dark theme styling.
+
+### Design System
+
+From `emails.ts:21-105`, all templates use:
+
+- **Brand Color**: `#6366f1` (indigo-500)
+- **Dark Background**: `#0f0f13` with `#18181f` cards
+- **Typography**: System fonts with careful spacing
+- **Mobile-responsive**: Optimized for all devices
+- **Accessibility**: High contrast and semantic HTML
+
+### Template Features
+
+<CodeGroup>
+```typescript Base Template
+function baseTemplate(content: string, previewText: string): string {
+    return `<!DOCTYPE html>
+    <html lang="en">
+      <!-- BetterTodo branded header -->
+      <!-- Responsive card with border-radius -->
+      <!-- Professional footer -->
+    </html>`;
+}
+```
+
+```typescript CTA Button
+function ctaButton(href: string, label: string): string {
+    return `<a href="${href}" style="
+      display:inline-block;
+      padding:14px 32px;
+      background:#6366f1;
+      color:#ffffff;
+      border-radius:10px;
+    ">${label}</a>`;
+}
+```
+</CodeGroup>
+
+## Board Invite Emails
+
+Two types of board invite emails are sent depending on whether the recipient is already registered.
+
+### For Registered Users
+
+Sent via `sendBoardInviteEmail` when inviting existing users.
+
+From `emails.ts:114-184`:
+
+```typescript
+export const sendBoardInviteEmail = internalAction({
+    args: {
+        to: v.string(),
+        recipientName: v.optional(v.string()),
+        inviterName: v.string(),
+        boardTitle: v.string(),
+        boardId: v.string(),
+        role: v.string(),
+        inviteId: v.string(),
+    },
+    handler: async (_ctx, args) => {
+        const resend = getResend();
+        const acceptUrl = `${siteUrl}/boards/${args.boardId}?acceptInvite=${args.inviteId}`;
+        
+        await resend.emails.send({
+            from: getFromEmail(),
+            to: args.to,
+            subject: `${args.inviterName} invited you to "${args.boardTitle}" on BetterTodo`,
+            html: baseTemplate(content, previewText),
+        });
+    },
+});
+```
+
+**Email includes**:
+- Personalized greeting with recipient's name
+- Inviter's name and board title
+- Role badge (admin/member/viewer)
+- Direct link to accept invitation
+- Board information card
+
+### For Unregistered Users
+
+Sent via `sendBoardInviteEmailExternal` for users who don't have an account yet.
+
+From `emails.ts:189-288`:
+
+```typescript
+export const sendBoardInviteEmailExternal = internalAction({
+    args: {
+        to: v.string(),
+        inviterName: v.string(),
+        boardTitle: v.string(),
+        role: v.string(),
+        token: v.string(),
+    },
+    handler: async (_ctx, args) => {
+        const inviteUrl = `${siteUrl}/sign-in?inviteToken=${args.token}`;
+        // Email with signup CTA and onboarding steps
+    },
+});
+```
+
+**Email includes**:
+- Introduction to BetterTodo
+- Onboarding steps (numbered 1-3)
+- "Accept & Create Account" CTA button
+- "Sign in instead" secondary button for existing users
+- 7-day expiration notice
+
+<Steps>
+  <Step title="User receives email">
+    New user gets an invite email with a unique token.
+  </Step>
+  
+  <Step title="Click to sign up">
+    User clicks "Accept & Create Account" and is directed to sign-up page.
+  </Step>
+  
+  <Step title="Auto-accept after signup">
+    After creating account, the invite is automatically accepted and user is added to the board.
+  </Step>
+</Steps>
+
+## Card Assignment Emails
+
+When a user is assigned to a card, they receive an assignment notification email.
+
+From `emails.ts:293-359`:
+
+```typescript
+export const sendCardAssignmentEmail = internalAction({
+    args: {
+        to: v.string(),
+        recipientName: v.optional(v.string()),
+        assignerName: v.string(),
+        cardTitle: v.string(),
+        boardTitle: v.string(),
+        boardId: v.string(),
+        cardId: v.string(),
+    },
+    handler: async (_ctx, args) => {
+        const cardUrl = `${siteUrl}/boards/${args.boardId}?card=${args.cardId}`;
+        
+        await resend.emails.send({
+            from: getFromEmail(),
+            to: args.to,
+            subject: `${args.assignerName} assigned you to "${args.cardTitle}"`,
+            html: baseTemplate(content, previewText),
+        });
+    },
+});
+```
+
+**Email includes**:
+- Notification icon (📌)
+- Assigner's name
+- Board and card titles
+- Direct link to view the card
+- Context card with board/card information
+
+## Testing Email Delivery
+
+### Development Testing
+
+<Steps>
+  <Step title="Use Resend test mode">
+    In development, Resend shows emails in the dashboard without actually sending them.
+  </Step>
+  
+  <Step title="Invite yourself">
+    Create a board and invite your own email address to test the flow.
+  </Step>
+  
+  <Step title="Check Resend logs">
+    Visit [Resend Dashboard](https://resend.com/logs) to see email delivery status.
+  </Step>
+</Steps>
+
+### Testing Checklist
+
+- [ ] Board invite to registered user
+- [ ] Board invite to unregistered user
+- [ ] Card assignment notification
+- [ ] Email rendering on mobile devices
+- [ ] Email rendering in different clients (Gmail, Outlook, etc.)
+- [ ] From address displays correctly
+- [ ] Links work and redirect properly
+
+## Email Template Customization
+
+### Updating Brand Colors
+
+From `emails.ts:21`:
+
+```typescript
+const BRAND_ACCENT = "#6366f1"; // indigo-500
+```
+
+Change this constant to update the primary color across all email templates.
+
+### Modifying Templates
+
+Email templates are located in `packages/backend/convex/emails.ts`. Each template function returns HTML strings with inline CSS for maximum compatibility.
+
+<CodeGroup>
+```typescript Role Badge
+function roleBadge(role: string): string {
+    const colors: Record<string, string> = {
+        admin: "#7c3aed",
+        member: "#0284c7",
+        viewer: "#059669",
+    };
+    const bg = colors[role] ?? "#6366f1";
+    return `<span style="background:${bg}22;color:${bg};">...</span>`;
+}
+```
+
+```typescript Secondary Button
+function secondaryButton(href: string, label: string): string {
+    return `<a href="${href}" style="
+      background:transparent;
+      color:#a1a1aa;
+      border:1px solid #3f3f46;
+    ">${label}</a>`;
+}
+```
+</CodeGroup>
+
+## Production Configuration
+
+### Domain Verification
+
+<Steps>
+  <Step title="Add domain in Resend">
+    Go to Resend → Domains → Add Domain and enter your domain name.
+  </Step>
+  
+  <Step title="Add DNS records">
+    Add the provided DNS records (SPF, DKIM, DMARC) to your domain's DNS settings.
+  </Step>
+  
+  <Step title="Verify domain">
+    Wait for verification (usually 5-10 minutes) and click Verify in Resend.
+  </Step>
+  
+  <Step title="Update FROM_EMAIL">
+    Set your verified domain email:
+    
+    ```bash
+    npx convex env set FROM_EMAIL "noreply@yourdomain.com" --prod
+    ```
+  </Step>
+</Steps>
+
+### Best Practices
+
+<Warning>
+**Important for deliverability**:
+- Use a verified domain in production
+- Set up SPF, DKIM, and DMARC records
+- Monitor bounce rates in Resend dashboard
+- Avoid sending too many emails too quickly
+</Warning>
+
+## Troubleshooting
+
+### Emails Not Sending
+
+1. **Check API key**: Verify `RESEND_API_KEY` is set correctly
+   ```bash
+   npx convex env get RESEND_API_KEY
+   ```
+
+2. **Check Resend logs**: Visit dashboard to see error messages
+
+3. **Verify environment**: Ensure `SITE_URL` is set for generating links
+
+### Emails Going to Spam
+
+1. **Verify your domain** with proper DNS records
+2. **Warm up your domain** by starting with low volume
+3. **Check content** for spam trigger words
+4. **Test with Mail Tester** at [mail-tester.com](https://www.mail-tester.com)
+
+### Template Rendering Issues
+
+1. **Test in Litmus** or Email on Acid for client compatibility
+2. **Use inline CSS** (already done in templates)
+3. **Avoid external images** or use absolute URLs
+4. **Check mobile rendering** in Gmail app and iOS Mail
+
+## Environment Variable Reference
+
+<ParamField path="RESEND_API_KEY" type="string" required>
+  Resend API key for sending emails. Get it from [resend.com/api-keys](https://resend.com/api-keys).
+</ParamField>
+
+<ParamField path="FROM_EMAIL" type="string" default="onboarding@resend.dev">
+  Sender email address. Use a verified domain for production.
+</ParamField>
+
+<ParamField path="SITE_URL" type="string" required>
+  Your application URL, used for generating email links. Example: `https://bettertodo.com`
+</ParamField>

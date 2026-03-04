@@ -1,0 +1,1067 @@
+---
+title: "Boards API"
+description: "API reference for board management operations in Better Todo"
+---
+
+# Boards API
+
+The Boards API provides functionality for creating, managing, and collaborating on boards. Boards are the primary organizational containers for lists and cards in Better Todo.
+
+## Queries
+
+### getAll
+
+Retrieves all boards accessible to the current authenticated user. Returns only active (non-archived) boards where the user is a member.
+
+<ParamField query="handler" type="async function">
+  No parameters required. Authentication is handled automatically.
+</ParamField>
+
+<ResponseField name="boards" type="array">
+  Array of board objects with member roles
+  <Expandable title="Board Object Properties">
+    <ResponseField name="_id" type="Id<'boards'>" required>
+      Unique board identifier
+    </ResponseField>
+    <ResponseField name="title" type="string" required>
+      Board title
+    </ResponseField>
+    <ResponseField name="description" type="string | undefined">
+      Board description
+    </ResponseField>
+    <ResponseField name="color" type="string | undefined">
+      Board color (hex or named color)
+    </ResponseField>
+    <ResponseField name="visibility" type="'private' | 'team' | 'public'" required>
+      Board visibility setting
+    </ResponseField>
+    <ResponseField name="createdBy" type="string" required>
+      User ID of board creator
+    </ResponseField>
+    <ResponseField name="archived" type="boolean" required>
+      Archive status (always false in this response)
+    </ResponseField>
+    <ResponseField name="role" type="'owner' | 'admin' | 'member' | 'viewer'" required>
+      Current user's role on this board
+    </ResponseField>
+    <ResponseField name="createdAt" type="number" required>
+      Unix timestamp of creation
+    </ResponseField>
+    <ResponseField name="updatedAt" type="number" required>
+      Unix timestamp of last update
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```typescript Example Usage
+import { useQuery } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+function BoardsList() {
+  const boards = useQuery(api.boards.getAll);
+  
+  return (
+    <div>
+      {boards?.map(board => (
+        <div key={board._id}>
+          <h3>{board.title}</h3>
+          <span>Role: {board.role}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+```typescript Response Example
+[
+  {
+    _id: "jd7x8k9m2n3p4q5r6s7t8u9v",
+    title: "Marketing Campaign Q1",
+    description: "Plan and execute Q1 marketing initiatives",
+    color: "#3B82F6",
+    visibility: "team",
+    createdBy: "user_abc123",
+    archived: false,
+    role: "owner",
+    createdAt: 1709568000000,
+    updatedAt: 1709654400000
+  }
+]
+```
+</CodeGroup>
+
+---
+
+### getById
+
+Retrieves a single board by ID with all its lists and cards. Includes card metadata such as checklist progress and label associations.
+
+<ParamField query="boardId" type="Id<'boards'>" required>
+  The unique identifier of the board to retrieve
+</ParamField>
+
+<ResponseField name="board" type="object | null">
+  Board object with nested lists and cards, or null if not found or unauthorized
+  <Expandable title="Board Object Properties">
+    <ResponseField name="_id" type="Id<'boards'>" required>
+      Unique board identifier
+    </ResponseField>
+    <ResponseField name="title" type="string" required>
+      Board title
+    </ResponseField>
+    <ResponseField name="description" type="string | undefined">
+      Board description
+    </ResponseField>
+    <ResponseField name="color" type="string | undefined">
+      Board color
+    </ResponseField>
+    <ResponseField name="visibility" type="'private' | 'team' | 'public'" required>
+      Board visibility setting
+    </ResponseField>
+    <ResponseField name="role" type="'owner' | 'admin' | 'member' | 'viewer'" required>
+      Current user's role on this board
+    </ResponseField>
+    <ResponseField name="lists" type="array" required>
+      Array of list objects with cards
+      <Expandable title="List Object Properties">
+        <ResponseField name="_id" type="Id<'lists'>" required>
+          Unique list identifier
+        </ResponseField>
+        <ResponseField name="title" type="string" required>
+          List title
+        </ResponseField>
+        <ResponseField name="position" type="number" required>
+          List position (for ordering)
+        </ResponseField>
+        <ResponseField name="cards" type="array" required>
+          Array of card objects in this list
+          <Expandable title="Card Object Properties">
+            <ResponseField name="_id" type="Id<'cards'>" required>
+              Unique card identifier
+            </ResponseField>
+            <ResponseField name="title" type="string" required>
+              Card title
+            </ResponseField>
+            <ResponseField name="position" type="number" required>
+              Card position within list
+            </ResponseField>
+            <ResponseField name="labelIds" type="array" required>
+              Array of label IDs associated with this card
+            </ResponseField>
+            <ResponseField name="checklistCount" type="number" required>
+              Number of checklists on this card
+            </ResponseField>
+            <ResponseField name="checklistItemsCompleted" type="number" required>
+              Number of completed checklist items
+            </ResponseField>
+            <ResponseField name="checklistItemsTotal" type="number" required>
+              Total number of checklist items
+            </ResponseField>
+          </Expandable>
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```typescript Example Usage
+import { useQuery } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+function BoardView({ boardId }) {
+  const board = useQuery(api.boards.getById, { boardId });
+  
+  if (!board) return <div>Board not found</div>;
+  
+  return (
+    <div>
+      <h1>{board.title}</h1>
+      <p>Your role: {board.role}</p>
+      {board.lists.map(list => (
+        <div key={list._id}>
+          <h2>{list.title}</h2>
+          <div>
+            {list.cards.map(card => (
+              <div key={card._id}>
+                <h3>{card.title}</h3>
+                <span>{card.checklistItemsCompleted}/{card.checklistItemsTotal} tasks</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+</CodeGroup>
+
+---
+
+### getArchived
+
+Retrieves archived boards and cards for the current user. Can optionally be scoped to a specific board.
+
+<ParamField query="boardId" type="Id<'boards'>" optional>
+  Optional board ID to filter archived cards. If omitted, returns archived content from all boards.
+</ParamField>
+
+<ResponseField name="result" type="object">
+  Object containing archived boards and cards
+  <Expandable title="Result Properties">
+    <ResponseField name="boards" type="array" required>
+      Array of archived board objects
+    </ResponseField>
+    <ResponseField name="cards" type="array" required>
+      Array of archived card objects with board metadata
+      <Expandable title="Card Properties">
+        <ResponseField name="_id" type="Id<'cards'>" required>
+          Card identifier
+        </ResponseField>
+        <ResponseField name="title" type="string" required>
+          Card title
+        </ResponseField>
+        <ResponseField name="boardTitle" type="string" required>
+          Title of the board this card belongs to
+        </ResponseField>
+        <ResponseField name="boardColor" type="string | undefined">
+          Color of the parent board
+        </ResponseField>
+        <ResponseField name="archived" type="boolean" required>
+          Archive status (always true)
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```typescript Example Usage
+import { useQuery } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+function ArchivedView() {
+  const archived = useQuery(api.boards.getArchived, {});
+  
+  return (
+    <div>
+      <h2>Archived Boards</h2>
+      {archived?.boards.map(board => (
+        <div key={board._id}>{board.title}</div>
+      ))}
+      
+      <h2>Archived Cards</h2>
+      {archived?.cards.map(card => (
+        <div key={card._id}>
+          {card.title} - {card.boardTitle}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+</CodeGroup>
+
+---
+
+### getMembers
+
+Retrieves all members of a specific board with their user details and roles.
+
+<ParamField query="boardId" type="Id<'boards'>" required>
+  The board ID to retrieve members for
+</ParamField>
+
+<ResponseField name="members" type="array">
+  Array of board member objects with user information
+  <Expandable title="Member Object Properties">
+    <ResponseField name="_id" type="Id<'boardMembers'>" required>
+      Unique membership identifier
+    </ResponseField>
+    <ResponseField name="boardId" type="Id<'boards'>" required>
+      Board identifier
+    </ResponseField>
+    <ResponseField name="userId" type="string" required>
+      User identifier
+    </ResponseField>
+    <ResponseField name="role" type="'owner' | 'admin' | 'member' | 'viewer'" required>
+      Member's role on this board
+    </ResponseField>
+    <ResponseField name="addedAt" type="number" required>
+      Unix timestamp when member was added
+    </ResponseField>
+    <ResponseField name="addedBy" type="string" required>
+      User ID who added this member
+    </ResponseField>
+    <ResponseField name="user" type="object | null">
+      User details
+      <Expandable title="User Properties">
+        <ResponseField name="name" type="string | null">
+          User's display name
+        </ResponseField>
+        <ResponseField name="email" type="string | null">
+          User's email address
+        </ResponseField>
+        <ResponseField name="image" type="string | null">
+          User's profile image URL
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```typescript Example Usage
+import { useQuery } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+function BoardMembers({ boardId }) {
+  const members = useQuery(api.boards.getMembers, { boardId });
+  
+  return (
+    <div>
+      <h2>Board Members</h2>
+      {members?.map(member => (
+        <div key={member._id}>
+          <img src={member.user?.image} alt={member.user?.name} />
+          <span>{member.user?.name || member.user?.email}</span>
+          <span>{member.role}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+</CodeGroup>
+
+---
+
+### getPendingInvites
+
+Retrieves all pending board invitations for the current authenticated user.
+
+<ParamField query="handler" type="async function">
+  No parameters required. Authentication is handled automatically.
+</ParamField>
+
+<ResponseField name="invites" type="array">
+  Array of pending invite objects
+  <Expandable title="Invite Object Properties">
+    <ResponseField name="_id" type="Id<'boardInvites'>" required>
+      Unique invite identifier
+    </ResponseField>
+    <ResponseField name="boardId" type="Id<'boards'>" required>
+      Board identifier
+    </ResponseField>
+    <ResponseField name="boardTitle" type="string" required>
+      Title of the board
+    </ResponseField>
+    <ResponseField name="boardColor" type="string | undefined">
+      Board color
+    </ResponseField>
+    <ResponseField name="role" type="'admin' | 'member' | 'viewer'" required>
+      Role being offered
+    </ResponseField>
+    <ResponseField name="inviterName" type="string" required>
+      Name of the user who sent the invite
+    </ResponseField>
+    <ResponseField name="status" type="'pending'" required>
+      Invite status (always pending in this response)
+    </ResponseField>
+    <ResponseField name="createdAt" type="number" required>
+      Unix timestamp when invite was created
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```typescript Example Usage
+import { useQuery } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+function PendingInvites() {
+  const invites = useQuery(api.boards.getPendingInvites);
+  
+  return (
+    <div>
+      {invites?.map(invite => (
+        <div key={invite._id}>
+          <p>{invite.inviterName} invited you to {invite.boardTitle}</p>
+          <span>Role: {invite.role}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+</CodeGroup>
+
+---
+
+## Mutations
+
+### create
+
+Creates a new board and automatically adds the creator as an owner.
+
+<ParamField body="title" type="string" required>
+  The title of the new board
+</ParamField>
+
+<ParamField body="description" type="string" optional>
+  Optional description for the board
+</ParamField>
+
+<ParamField body="color" type="string" optional>
+  Optional color for the board (hex code or named color)
+</ParamField>
+
+<ParamField body="visibility" type="'private' | 'team' | 'public'" optional default="private">
+  Board visibility setting
+</ParamField>
+
+<ResponseField name="board" type="object">
+  The newly created board object
+  <Expandable title="Board Properties">
+    <ResponseField name="_id" type="Id<'boards'>" required>
+      Unique board identifier
+    </ResponseField>
+    <ResponseField name="title" type="string" required>
+      Board title
+    </ResponseField>
+    <ResponseField name="description" type="string | undefined">
+      Board description
+    </ResponseField>
+    <ResponseField name="color" type="string | undefined">
+      Board color
+    </ResponseField>
+    <ResponseField name="visibility" type="'private' | 'team' | 'public'" required>
+      Board visibility
+    </ResponseField>
+    <ResponseField name="createdBy" type="string" required>
+      User ID of creator
+    </ResponseField>
+    <ResponseField name="archived" type="boolean" required>
+      Archive status (false for new boards)
+    </ResponseField>
+    <ResponseField name="createdAt" type="number" required>
+      Creation timestamp
+    </ResponseField>
+    <ResponseField name="updatedAt" type="number" required>
+      Last update timestamp
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```typescript Example Usage
+import { useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+function CreateBoardForm() {
+  const createBoard = useMutation(api.boards.create);
+  
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const board = await createBoard({
+      title: "New Marketing Board",
+      description: "Track all marketing initiatives",
+      color: "#3B82F6",
+      visibility: "team"
+    });
+    console.log("Created board:", board._id);
+  };
+  
+  return <form onSubmit={handleSubmit}>...</form>;
+}
+```
+</CodeGroup>
+
+---
+
+### update
+
+Updates board details. Requires admin or owner role.
+
+<ParamField body="boardId" type="Id<'boards'>" required>
+  The ID of the board to update
+</ParamField>
+
+<ParamField body="title" type="string" optional>
+  New title for the board
+</ParamField>
+
+<ParamField body="description" type="string" optional>
+  New description for the board
+</ParamField>
+
+<ParamField body="color" type="string" optional>
+  New color for the board
+</ParamField>
+
+<ParamField body="visibility" type="'private' | 'team' | 'public'" optional>
+  New visibility setting
+</ParamField>
+
+<ResponseField name="board" type="object">
+  The updated board object with all current properties
+</ResponseField>
+
+<CodeGroup>
+```typescript Example Usage
+import { useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+function UpdateBoardForm({ boardId }) {
+  const updateBoard = useMutation(api.boards.update);
+  
+  const handleUpdate = async () => {
+    await updateBoard({
+      boardId,
+      title: "Updated Board Title",
+      color: "#10B981"
+    });
+  };
+  
+  return <button onClick={handleUpdate}>Update Board</button>;
+}
+```
+</CodeGroup>
+
+---
+
+### archive
+
+Archives a board. Only board owners can archive boards.
+
+<ParamField body="boardId" type="Id<'boards'>" required>
+  The ID of the board to archive
+</ParamField>
+
+<ResponseField name="result" type="object">
+  Success indicator
+  <Expandable title="Result Properties">
+    <ResponseField name="success" type="boolean" required>
+      Always true if the operation succeeds
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```typescript Example Usage
+import { useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+function ArchiveBoardButton({ boardId }) {
+  const archiveBoard = useMutation(api.boards.archive);
+  
+  const handleArchive = async () => {
+    const result = await archiveBoard({ boardId });
+    if (result.success) {
+      console.log("Board archived successfully");
+    }
+  };
+  
+  return <button onClick={handleArchive}>Archive Board</button>;
+}
+```
+</CodeGroup>
+
+---
+
+### restore
+
+Restores an archived board. Only board owners can restore boards.
+
+<ParamField body="boardId" type="Id<'boards'>" required>
+  The ID of the board to restore
+</ParamField>
+
+<ResponseField name="result" type="object">
+  Success indicator
+  <Expandable title="Result Properties">
+    <ResponseField name="success" type="boolean" required>
+      Always true if the operation succeeds
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```typescript Example Usage
+import { useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+function RestoreBoardButton({ boardId }) {
+  const restoreBoard = useMutation(api.boards.restore);
+  
+  const handleRestore = async () => {
+    await restoreBoard({ boardId });
+  };
+  
+  return <button onClick={handleRestore}>Restore Board</button>;
+}
+```
+</CodeGroup>
+
+---
+
+### deleteBoard
+
+Permanently deletes a board and all its related data (lists, cards, members). Only board owners can delete boards.
+
+<Warning>
+This operation is irreversible. All lists, cards, and associated data will be permanently deleted.
+</Warning>
+
+<ParamField body="boardId" type="Id<'boards'>" required>
+  The ID of the board to delete
+</ParamField>
+
+<ResponseField name="result" type="object">
+  Success indicator
+  <Expandable title="Result Properties">
+    <ResponseField name="success" type="boolean" required>
+      Always true if the operation succeeds
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```typescript Example Usage
+import { useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+function DeleteBoardButton({ boardId }) {
+  const deleteBoard = useMutation(api.boards.deleteBoard);
+  
+  const handleDelete = async () => {
+    if (confirm("Are you sure? This cannot be undone.")) {
+      await deleteBoard({ boardId });
+    }
+  };
+  
+  return <button onClick={handleDelete}>Delete Board</button>;
+}
+```
+</CodeGroup>
+
+---
+
+## Member Management
+
+### addMember
+
+Adds a member to a board by user ID. Requires admin or owner role.
+
+<ParamField body="boardId" type="Id<'boards'>" required>
+  The board to add the member to
+</ParamField>
+
+<ParamField body="userId" type="string" required>
+  The user ID of the member to add
+</ParamField>
+
+<ParamField body="role" type="'admin' | 'member' | 'viewer'" required>
+  The role to assign to the new member
+</ParamField>
+
+<ResponseField name="result" type="object">
+  Success indicator
+  <Expandable title="Result Properties">
+    <ResponseField name="success" type="boolean" required>
+      Always true if the operation succeeds
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```typescript Example Usage
+import { useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+function AddMemberButton({ boardId, userId }) {
+  const addMember = useMutation(api.boards.addMember);
+  
+  const handleAdd = async () => {
+    await addMember({
+      boardId,
+      userId,
+      role: "member"
+    });
+  };
+  
+  return <button onClick={handleAdd}>Add Member</button>;
+}
+```
+</CodeGroup>
+
+---
+
+### addMemberByEmail
+
+Invites a member by email address. If the email belongs to an existing user, creates an in-app invite. If unregistered, creates a token-based invite and sends a signup email. Requires admin or owner role.
+
+<ParamField body="boardId" type="Id<'boards'>" required>
+  The board to invite the member to
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Email address of the person to invite
+</ParamField>
+
+<ParamField body="role" type="'admin' | 'member' | 'viewer'" required>
+  The role to assign to the invited member
+</ParamField>
+
+<ResponseField name="result" type="object">
+  Invite result with user information
+  <Expandable title="Result Properties">
+    <ResponseField name="success" type="boolean" required>
+      Always true if the operation succeeds
+    </ResponseField>
+    <ResponseField name="isNewUser" type="boolean" required>
+      True if the email is unregistered (external invite), false if registered user
+    </ResponseField>
+    <ResponseField name="userName" type="string | null" required>
+      Name of the invited user (null for unregistered emails)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```typescript Example Usage
+import { useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+function InviteMemberForm({ boardId }) {
+  const inviteMember = useMutation(api.boards.addMemberByEmail);
+  
+  const handleInvite = async (email: string) => {
+    const result = await inviteMember({
+      boardId,
+      email,
+      role: "member"
+    });
+    
+    if (result.isNewUser) {
+      console.log("Sent signup invite to", email);
+    } else {
+      console.log("Sent in-app invite to", result.userName);
+    }
+  };
+  
+  return <form>...</form>;
+}
+```
+</CodeGroup>
+
+---
+
+### updateMemberRole
+
+Updates a board member's role. Only board owners can change member roles.
+
+<ParamField body="boardId" type="Id<'boards'>" required>
+  The board ID
+</ParamField>
+
+<ParamField body="userId" type="string" required>
+  The user ID of the member whose role to update
+</ParamField>
+
+<ParamField body="role" type="'admin' | 'member' | 'viewer'" required>
+  The new role to assign
+</ParamField>
+
+<ResponseField name="result" type="object">
+  Success indicator
+  <Expandable title="Result Properties">
+    <ResponseField name="success" type="boolean" required>
+      Always true if the operation succeeds
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```typescript Example Usage
+import { useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+function UpdateRoleButton({ boardId, userId }) {
+  const updateRole = useMutation(api.boards.updateMemberRole);
+  
+  const handleUpdate = async (newRole: "admin" | "member" | "viewer") => {
+    await updateRole({
+      boardId,
+      userId,
+      role: newRole
+    });
+  };
+  
+  return (
+    <select onChange={(e) => handleUpdate(e.target.value)}>
+      <option value="viewer">Viewer</option>
+      <option value="member">Member</option>
+      <option value="admin">Admin</option>
+    </select>
+  );
+}
+```
+</CodeGroup>
+
+---
+
+### removeMember
+
+Removes a member from a board. Requires admin or owner role. Cannot remove board owners.
+
+<ParamField body="boardId" type="Id<'boards'>" required>
+  The board ID
+</ParamField>
+
+<ParamField body="userId" type="string" required>
+  The user ID of the member to remove
+</ParamField>
+
+<ResponseField name="result" type="object">
+  Success indicator
+  <Expandable title="Result Properties">
+    <ResponseField name="success" type="boolean" required>
+      Always true if the operation succeeds
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```typescript Example Usage
+import { useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+function RemoveMemberButton({ boardId, userId }) {
+  const removeMember = useMutation(api.boards.removeMember);
+  
+  const handleRemove = async () => {
+    if (confirm("Remove this member from the board?")) {
+      await removeMember({ boardId, userId });
+    }
+  };
+  
+  return <button onClick={handleRemove}>Remove Member</button>;
+}
+```
+</CodeGroup>
+
+---
+
+## Invitation Management
+
+### acceptInvite
+
+Accepts a board invitation by invite ID. The invite must be addressed to the current user and in pending status.
+
+<ParamField body="inviteId" type="Id<'boardInvites'>" required>
+  The ID of the invitation to accept
+</ParamField>
+
+<ResponseField name="result" type="object">
+  Success indicator
+  <Expandable title="Result Properties">
+    <ResponseField name="success" type="boolean" required>
+      Always true if the operation succeeds
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```typescript Example Usage
+import { useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+function AcceptInviteButton({ inviteId }) {
+  const acceptInvite = useMutation(api.boards.acceptInvite);
+  
+  const handleAccept = async () => {
+    await acceptInvite({ inviteId });
+    console.log("Joined board successfully");
+  };
+  
+  return <button onClick={handleAccept}>Accept Invite</button>;
+}
+```
+</CodeGroup>
+
+---
+
+### declineInvite
+
+Declines a board invitation. The invite must be addressed to the current user and in pending status.
+
+<ParamField body="inviteId" type="Id<'boardInvites'>" required>
+  The ID of the invitation to decline
+</ParamField>
+
+<ResponseField name="result" type="object">
+  Success indicator
+  <Expandable title="Result Properties">
+    <ResponseField name="success" type="boolean" required>
+      Always true if the operation succeeds
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```typescript Example Usage
+import { useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+function DeclineInviteButton({ inviteId }) {
+  const declineInvite = useMutation(api.boards.declineInvite);
+  
+  const handleDecline = async () => {
+    await declineInvite({ inviteId });
+  };
+  
+  return <button onClick={handleDecline}>Decline</button>;
+}
+```
+</CodeGroup>
+
+---
+
+### acceptInviteByToken
+
+Accepts a board invitation via token. Used for email link flow when unregistered users sign up. Validates that the user's email matches the invited email.
+
+<ParamField body="token" type="string" required>
+  The unique invite token from the email link
+</ParamField>
+
+<ResponseField name="result" type="object">
+  Success result with board ID
+  <Expandable title="Result Properties">
+    <ResponseField name="success" type="boolean" required>
+      Always true if the operation succeeds
+    </ResponseField>
+    <ResponseField name="boardId" type="Id<'boards'>" required>
+      The ID of the board the user was added to
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```typescript Example Usage
+import { useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
+import { useRouter } from "next/router";
+
+function AcceptInvitePage() {
+  const router = useRouter();
+  const acceptByToken = useMutation(api.boards.acceptInviteByToken);
+  
+  useEffect(() => {
+    const token = router.query.token as string;
+    if (token) {
+      acceptByToken({ token }).then(result => {
+        // Redirect to the board
+        router.push(`/boards/${result.boardId}`);
+      });
+    }
+  }, [router.query.token]);
+  
+  return <div>Processing invite...</div>;
+}
+```
+</CodeGroup>
+
+---
+
+## Role Hierarchy
+
+Board members can have one of four roles, each with different permissions:
+
+<Tabs>
+  <Tab title="Owner">
+    - Full control over the board
+    - Can delete the board
+    - Can archive/restore the board
+    - Can manage all members and change roles
+    - Can update board settings
+    - Cannot be removed by other members
+    - Only one owner per board (the creator)
+  </Tab>
+  <Tab title="Admin">
+    - Can update board settings
+    - Can add and remove members (except owner)
+    - Cannot change other admins' roles
+    - Cannot archive or delete the board
+    - Can be removed by the owner
+  </Tab>
+  <Tab title="Member">
+    - Can create, edit, and delete cards and lists
+    - Can view all board content
+    - Cannot manage members
+    - Cannot change board settings
+    - Can be removed by admins or owner
+  </Tab>
+  <Tab title="Viewer">
+    - Can view all board content
+    - Cannot create, edit, or delete content
+    - Cannot manage members
+    - Cannot change board settings
+    - Can be removed by admins or owner
+  </Tab>
+</Tabs>
+
+## Visibility Settings
+
+Boards support three visibility levels:
+
+- **Private**: Only invited members can access the board
+- **Team**: All team members can discover and request access to the board
+- **Public**: Anyone with the link can view the board (requires member role to edit)
+
+## Error Handling
+
+All mutations may throw the following errors:
+
+- `"Unauthorized"` - User is not authenticated
+- `"Insufficient permissions"` - User lacks required role for the operation
+- `"Board not found"` - Specified board does not exist
+- `"Member not found"` - Specified member does not exist
+- `"User is already a member"` - Attempted to add a user who is already a member
+- `"Only owners can..."` - Operation restricted to board owners
+- `"Cannot remove board owner"` - Attempted to remove the board owner
+- `"Cannot change owner role"` - Attempted to change the owner's role
+
+<CodeGroup>
+```typescript Error Handling Example
+import { useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+function BoardOperations({ boardId }) {
+  const updateBoard = useMutation(api.boards.update);
+  
+  const handleUpdate = async () => {
+    try {
+      await updateBoard({
+        boardId,
+        title: "New Title"
+      });
+    } catch (error) {
+      if (error.message === "Insufficient permissions") {
+        alert("You don't have permission to update this board");
+      } else if (error.message === "Unauthorized") {
+        alert("Please sign in to continue");
+      } else {
+        alert("An error occurred: " + error.message);
+      }
+    }
+  };
+  
+  return <button onClick={handleUpdate}>Update</button>;
+}
+```
+</CodeGroup>

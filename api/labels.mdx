@@ -1,0 +1,339 @@
+---
+title: 'Labels API'
+description: 'Categorize and organize cards with colored labels'
+icon: 'tag'
+---
+
+## Overview
+
+Labels allow you to categorize and visually organize cards within a board. Each board can have multiple custom labels with names and colors. Labels can be added to or removed from cards to help filter and identify tasks at a glance.
+
+## Authentication & Permissions
+
+All label operations require authentication. Permission levels:
+
+- **Viewer**: Can view labels but cannot create, edit, or apply them
+- **Member**: Can create labels and add/remove them from cards
+- **Admin**: Can create, edit, and delete labels
+- **Owner**: Full control over all label operations
+
+---
+
+## Queries
+
+### getByBoard
+
+Retrieves all labels for a specific board.
+
+<ParamField path="boardId" type="Id<'boards'>" required>
+  The ID of the board
+</ParamField>
+
+<ResponseField name="labels" type="array">
+  Array of label objects
+  <Expandable title="Label Object">
+    <ResponseField name="_id" type="Id<'labels'>" required>
+      Unique identifier for the label
+    </ResponseField>
+    <ResponseField name="boardId" type="Id<'boards'>" required>
+      The board this label belongs to
+    </ResponseField>
+    <ResponseField name="name" type="string" required>
+      The label name (e.g., "Bug", "Feature", "Urgent")
+    </ResponseField>
+    <ResponseField name="color" type="string" required>
+      Hex color code for the label (e.g., "#FF0000")
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function BoardLabels({ boardId }) {
+  const labels = useQuery(api.labels.getByBoard, { boardId });
+  
+  if (!labels) return <div>Loading...</div>;
+  
+  return (
+    <div>
+      {labels.map(label => (
+        <span 
+          key={label._id} 
+          style={{ backgroundColor: label.color }}
+        >
+          {label.name}
+        </span>
+      ))}
+    </div>
+  );
+}
+```
+
+**Permissions:**
+- User must be a board member
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `Access denied` - User is not a member of the board
+
+---
+
+## Mutations
+
+### create
+
+Creates a new label for a board.
+
+<ParamField body="boardId" type="Id<'boards'>" required>
+  The board to create the label in
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  The label name (e.g., "Bug", "Feature")
+</ParamField>
+
+<ParamField body="color" type="string" required>
+  Hex color code (e.g., "#FF5733")
+</ParamField>
+
+<ResponseField name="label" type="object">
+  The created label object
+  <Expandable title="Properties">
+    <ResponseField name="_id" type="Id<'labels'>" required>
+      Unique identifier for the label
+    </ResponseField>
+    <ResponseField name="boardId" type="Id<'boards'>" required>
+      The board ID
+    </ResponseField>
+    <ResponseField name="name" type="string" required>
+      The label name
+    </ResponseField>
+    <ResponseField name="color" type="string" required>
+      The hex color code
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function CreateLabel({ boardId }) {
+  const createLabel = useMutation(api.labels.create);
+  
+  const handleCreate = async () => {
+    const label = await createLabel({
+      boardId,
+      name: "High Priority",
+      color: "#FF0000"
+    });
+    console.log("Created label:", label);
+  };
+  
+  return <button onClick={handleCreate}>Create Label</button>;
+}
+```
+
+**Permissions:**
+- User must have at least "member" role (viewers cannot create labels)
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `Insufficient permissions` - User is a viewer
+
+---
+
+### update
+
+Updates an existing label's name or color.
+
+<ParamField body="labelId" type="Id<'labels'>" required>
+  The ID of the label to update
+</ParamField>
+
+<ParamField body="name" type="string">
+  New label name (optional)
+</ParamField>
+
+<ParamField body="color" type="string">
+  New hex color code (optional)
+</ParamField>
+
+<ResponseField name="label" type="object">
+  The updated label object with new values
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function EditLabel({ labelId }) {
+  const updateLabel = useMutation(api.labels.update);
+  
+  const handleUpdate = async () => {
+    await updateLabel({
+      labelId,
+      name: "Critical Bug",
+      color: "#D32F2F"
+    });
+  };
+  
+  return <button onClick={handleUpdate}>Update Label</button>;
+}
+```
+
+**Permissions:**
+- User must have at least "member" role
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `Label not found` - Invalid label ID
+- `Insufficient permissions` - User is a viewer
+
+---
+
+### deleteLabel
+
+Permanently deletes a label and removes it from all cards.
+
+<ParamField body="labelId" type="Id<'labels'>" required>
+  The ID of the label to delete
+</ParamField>
+
+<ResponseField name="success" type="boolean">
+  Returns `true` when deletion is complete
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function DeleteLabelButton({ labelId }) {
+  const deleteLabel = useMutation(api.labels.deleteLabel);
+  
+  const handleDelete = async () => {
+    if (confirm("Delete this label from all cards?")) {
+      await deleteLabel({ labelId });
+    }
+  };
+  
+  return <button onClick={handleDelete}>Delete</button>;
+}
+```
+
+**Cascade Behavior:**
+- All `cardLabels` associations are removed
+- The label is removed from all cards that had it applied
+
+**Permissions:**
+- User must have "owner" or "admin" role (members cannot delete labels)
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `Label not found` - Invalid label ID
+- `Insufficient permissions` - User is a member or viewer
+
+---
+
+### addToCard
+
+Adds a label to a card.
+
+<ParamField body="cardId" type="Id<'cards'>" required>
+  The card to add the label to
+</ParamField>
+
+<ParamField body="labelId" type="Id<'labels'>" required>
+  The label to add
+</ParamField>
+
+<ResponseField name="success" type="boolean">
+  Returns `true` when the label is added
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function AddLabelToCard({ cardId, labelId }) {
+  const addToCard = useMutation(api.labels.addToCard);
+  
+  const handleAdd = async () => {
+    await addToCard({ cardId, labelId });
+  };
+  
+  return <button onClick={handleAdd}>Add Label</button>;
+}
+```
+
+**Permissions:**
+- User must have at least "member" role
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `Card not found` - Invalid card ID
+- `Insufficient permissions` - User is a viewer
+- `Label already added to this card` - Label is already on the card
+
+---
+
+### removeFromCard
+
+Removes a label from a card.
+
+<ParamField body="cardId" type="Id<'cards'>" required>
+  The card to remove the label from
+</ParamField>
+
+<ParamField body="labelId" type="Id<'labels'>" required>
+  The label to remove
+</ParamField>
+
+<ResponseField name="success" type="boolean">
+  Returns `true` when the label is removed
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function RemoveLabelFromCard({ cardId, labelId }) {
+  const removeLabel = useMutation(api.labels.removeFromCard);
+  
+  const handleRemove = async () => {
+    await removeLabel({ cardId, labelId });
+  };
+  
+  return <button onClick={handleRemove}>Remove Label</button>;
+}
+```
+
+**Permissions:**
+- User must have at least "member" role
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `Card not found` - Invalid card ID
+- `Insufficient permissions` - User is a viewer
+- `Label not found on this card` - Label is not applied to this card
+
+---
+
+## Related APIs
+
+- [Cards API](/api/cards) - Manage cards that use labels
+- [Boards API](/api/boards) - Manage boards that contain labels

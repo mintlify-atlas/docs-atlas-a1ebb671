@@ -72,7 +72,7 @@
           },
           {
             "group": "Cards",
-            "pages": ["api/cards"]
+            "pages": ["api/cards", "api/labels", "api/checklists", "api/attachments"]
           },
           {
             "group": "Lists",

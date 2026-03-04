@@ -1,0 +1,406 @@
+---
+title: 'Attachments API'
+description: 'Upload and manage files attached to cards'
+icon: 'paperclip'
+---
+
+## Overview
+
+Attachments allow you to upload files to cards, such as images, documents, or other media. Attachments are stored in Convex's built-in file storage system. Image attachments can be set as card cover images.
+
+## Authentication & Permissions
+
+All attachment operations require authentication. Permission levels:
+
+- **Viewer**: Can view attachments but cannot upload or delete them
+- **Member**: Can upload and delete attachments
+- **Admin**: Full control over attachments
+- **Owner**: Full control over attachments
+
+---
+
+## Queries
+
+### getByCard
+
+Retrieves all attachments for a card with resolved download URLs.
+
+<ParamField path="cardId" type="Id<'cards'>" required>
+  The ID of the card
+</ParamField>
+
+<ResponseField name="attachments" type="array">
+  Array of attachment objects with download URLs
+  <Expandable title="Attachment Object">
+    <ResponseField name="_id" type="Id<'attachments'>" required>
+      Unique identifier for the attachment
+    </ResponseField>
+    <ResponseField name="cardId" type="Id<'cards'>" required>
+      The parent card ID
+    </ResponseField>
+    <ResponseField name="uploadedBy" type="string" required>
+      User ID of the uploader
+    </ResponseField>
+    <ResponseField name="fileName" type="string" required>
+      Original file name
+    </ResponseField>
+    <ResponseField name="storageId" type="Id<'_storage'>" required>
+      Convex storage ID for the file
+    </ResponseField>
+    <ResponseField name="fileSize" type="number" required>
+      File size in bytes
+    </ResponseField>
+    <ResponseField name="mimeType" type="string" required>
+      MIME type (e.g., "image/png", "application/pdf")
+    </ResponseField>
+    <ResponseField name="createdAt" type="number" required>
+      Upload timestamp
+    </ResponseField>
+    <ResponseField name="url" type="string | null" required>
+      Resolved download URL (expires after some time)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function CardAttachments({ cardId }) {
+  const attachments = useQuery(api.attachments.getByCard, { cardId });
+  
+  if (!attachments) return <div>Loading...</div>;
+  
+  return (
+    <div>
+      <h3>Attachments ({attachments.length})</h3>
+      {attachments.map(attachment => (
+        <div key={attachment._id}>
+          <a href={attachment.url} download={attachment.fileName}>
+            {attachment.fileName}
+          </a>
+          <span>({(attachment.fileSize / 1024).toFixed(1)} KB)</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+**Permissions:**
+- User must be a board member
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `Card not found` - Invalid card ID
+- `Access denied` - User is not a member of the board
+
+---
+
+## Mutations
+
+### addAttachment
+
+Adds a new file attachment to a card. The file must first be uploaded to Convex storage using the file upload API.
+
+<ParamField body="cardId" type="Id<'cards'>" required>
+  The card to attach the file to
+</ParamField>
+
+<ParamField body="storageId" type="Id<'_storage'>" required>
+  The Convex storage ID from the file upload
+</ParamField>
+
+<ParamField body="fileName" type="string" required>
+  Original file name
+</ParamField>
+
+<ParamField body="fileSize" type="number" required>
+  File size in bytes
+</ParamField>
+
+<ParamField body="mimeType" type="string" required>
+  MIME type (e.g., "image/jpeg")
+</ParamField>
+
+<ResponseField name="attachment" type="object">
+  The created attachment object
+  <Expandable title="Properties">
+    <ResponseField name="_id" type="Id<'attachments'>" required>
+      Unique identifier
+    </ResponseField>
+    <ResponseField name="cardId" type="Id<'cards'>" required>
+      Parent card ID
+    </ResponseField>
+    <ResponseField name="uploadedBy" type="string" required>
+      Current user's ID
+    </ResponseField>
+    <ResponseField name="fileName" type="string" required>
+      File name
+    </ResponseField>
+    <ResponseField name="storageId" type="Id<'_storage'>" required>
+      Storage ID
+    </ResponseField>
+    <ResponseField name="fileSize" type="number" required>
+      File size in bytes
+    </ResponseField>
+    <ResponseField name="mimeType" type="string" required>
+      MIME type
+    </ResponseField>
+    <ResponseField name="createdAt" type="number" required>
+      Upload timestamp
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function FileUpload({ cardId }) {
+  const addAttachment = useMutation(api.attachments.addAttachment);
+  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  
+  const handleFileUpload = async (file: File) => {
+    // Step 1: Get upload URL
+    const uploadUrl = await generateUploadUrl();
+    
+    // Step 2: Upload file to storage
+    const result = await fetch(uploadUrl, {
+      method: "POST",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+    const { storageId } = await result.json();
+    
+    // Step 3: Create attachment record
+    await addAttachment({
+      cardId,
+      storageId,
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type
+    });
+  };
+  
+  return (
+    <input 
+      type="file" 
+      onChange={(e) => handleFileUpload(e.target.files[0])} 
+    />
+  );
+}
+```
+
+**Permissions:**
+- User must have at least "member" role
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `Card not found` - Invalid card ID
+- `Insufficient permissions` - User is a viewer
+
+---
+
+### deleteAttachment
+
+Deletes an attachment and its associated file from storage.
+
+<ParamField body="attachmentId" type="Id<'attachments'>" required>
+  The ID of the attachment to delete
+</ParamField>
+
+<ResponseField name="success" type="boolean">
+  Returns `true` when deletion is complete
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function DeleteAttachmentButton({ attachmentId }) {
+  const deleteAttachment = useMutation(api.attachments.deleteAttachment);
+  
+  const handleDelete = async () => {
+    if (confirm("Delete this file?")) {
+      await deleteAttachment({ attachmentId });
+    }
+  };
+  
+  return <button onClick={handleDelete}>Delete</button>;
+}
+```
+
+**Cascade Behavior:**
+- The file is deleted from Convex storage
+- If the attachment is the card's cover image, the cover is removed from the card
+
+**Permissions:**
+- User must have at least "member" role
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `Attachment not found` - Invalid attachment ID
+- `Card not found` - Parent card doesn't exist
+- `Insufficient permissions` - User is a viewer
+
+---
+
+### setAsCover
+
+Sets an attachment image as the card's cover image.
+
+<ParamField body="cardId" type="Id<'cards'>" required>
+  The card to set the cover on
+</ParamField>
+
+<ParamField body="storageId" type="Id<'_storage'>" required>
+  The storage ID of the image attachment
+</ParamField>
+
+<ResponseField name="success" type="boolean">
+  Returns `true` when the cover is set
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function SetCoverButton({ cardId, storageId }) {
+  const setAsCover = useMutation(api.attachments.setAsCover);
+  
+  const handleSetCover = async () => {
+    await setAsCover({ cardId, storageId });
+  };
+  
+  return <button onClick={handleSetCover}>Set as Cover</button>;
+}
+```
+
+**Behavior:**
+- Updates the card's `coverImage` field with the file URL
+- Updates the card's `coverStorageId` field
+- Updates the card's `updatedAt` timestamp
+
+**Permissions:**
+- User must have at least "member" role
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `Card not found` - Invalid card ID
+- `File not found in storage` - Invalid storage ID
+- `Insufficient permissions` - User is a viewer
+
+---
+
+### removeCover
+
+Removes the cover image from a card.
+
+<ParamField body="cardId" type="Id<'cards'>" required>
+  The card to remove the cover from
+</ParamField>
+
+<ResponseField name="success" type="boolean">
+  Returns `true` when the cover is removed
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function RemoveCoverButton({ cardId }) {
+  const removeCover = useMutation(api.attachments.removeCover);
+  
+  const handleRemove = async () => {
+    await removeCover({ cardId });
+  };
+  
+  return <button onClick={handleRemove}>Remove Cover</button>;
+}
+```
+
+**Behavior:**
+- Sets `coverImage` to `undefined`
+- Sets `coverStorageId` to `undefined`
+- Updates the card's `updatedAt` timestamp
+- Does NOT delete the attachment file
+
+**Permissions:**
+- User must have at least "member" role
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `Card not found` - Invalid card ID
+- `Insufficient permissions` - User is a viewer
+
+---
+
+## File Upload Flow
+
+Complete example of uploading a file and attaching it to a card:
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function CompleteFileUpload({ cardId }) {
+  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  const addAttachment = useMutation(api.attachments.addAttachment);
+  const setAsCover = useMutation(api.attachments.setAsCover);
+  
+  const uploadAndAttach = async (file: File, setCover = false) => {
+    // Get upload URL from Convex
+    const uploadUrl = await generateUploadUrl();
+    
+    // Upload file to storage
+    const uploadResponse = await fetch(uploadUrl, {
+      method: "POST",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+    const { storageId } = await uploadResponse.json();
+    
+    // Create attachment record
+    await addAttachment({
+      cardId,
+      storageId,
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type
+    });
+    
+    // Optionally set as cover (for images)
+    if (setCover && file.type.startsWith("image/")) {
+      await setAsCover({ cardId, storageId });
+    }
+    
+    console.log("File uploaded successfully");
+  };
+  
+  return (
+    <input 
+      type="file" 
+      onChange={(e) => {
+        const file = e.target.files?.[0];
+        if (file) uploadAndAttach(file);
+      }} 
+    />
+  );
+}
+```
+
+## Related APIs
+
+- [Cards API](/api/cards) - Manage cards that contain attachments
+- [Boards API](/api/boards) - Manage boards and permissions

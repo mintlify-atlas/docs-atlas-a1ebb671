@@ -1,0 +1,433 @@
+---
+title: 'Checklists API'
+description: 'Add task items and track progress within cards'
+icon: 'square-check'
+---
+
+## Overview
+
+Checklists allow you to break down cards into smaller tasks and track completion progress. Each card can have multiple checklists, and each checklist can contain multiple items. Items support completion status, assignees, and due dates.
+
+## Authentication & Permissions
+
+All checklist operations require authentication. Permission levels:
+
+- **Viewer**: Can view checklists but cannot create, edit, or check off items
+- **Member**: Can create checklists, add items, and update completion status
+- **Admin**: Full control over checklists
+- **Owner**: Full control over checklists
+
+---
+
+## Queries
+
+### getByCard
+
+Retrieves all checklists for a card, including their items sorted by position.
+
+<ParamField path="cardId" type="Id<'cards'>" required>
+  The ID of the card
+</ParamField>
+
+<ResponseField name="checklists" type="array">
+  Array of checklist objects with nested items
+  <Expandable title="Checklist Object">
+    <ResponseField name="_id" type="Id<'checklists'>" required>
+      Unique identifier for the checklist
+    </ResponseField>
+    <ResponseField name="cardId" type="Id<'cards'>" required>
+      The parent card ID
+    </ResponseField>
+    <ResponseField name="title" type="string" required>
+      The checklist title (e.g., "Prerequisites")
+    </ResponseField>
+    <ResponseField name="position" type="number" required>
+      Ordering position within the card
+    </ResponseField>
+    <ResponseField name="items" type="array" required>
+      Array of checklist items sorted by position
+      <Expandable title="Item Object">
+        <ResponseField name="_id" type="Id<'checklistItems'>" required>
+          Unique identifier for the item
+        </ResponseField>
+        <ResponseField name="checklistId" type="Id<'checklists'>" required>
+          Parent checklist ID
+        </ResponseField>
+        <ResponseField name="title" type="string" required>
+          The item text
+        </ResponseField>
+        <ResponseField name="completed" type="boolean" required>
+          Whether the item is checked off
+        </ResponseField>
+        <ResponseField name="assignedTo" type="string">
+          User ID of assigned user (optional)
+        </ResponseField>
+        <ResponseField name="dueDate" type="number">
+          Due date timestamp (optional)
+        </ResponseField>
+        <ResponseField name="position" type="number" required>
+          Ordering position within the checklist
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function CardChecklists({ cardId }) {
+  const checklists = useQuery(api.checklists.getByCard, { cardId });
+  
+  if (!checklists) return <div>Loading...</div>;
+  
+  return (
+    <div>
+      {checklists.map(checklist => (
+        <div key={checklist._id}>
+          <h3>{checklist.title}</h3>
+          <ul>
+            {checklist.items.map(item => (
+              <li key={item._id}>
+                <input type="checkbox" checked={item.completed} />
+                {item.title}
+              </li>
+            ))}
+          </ul>
+          <p>{checklist.items.filter(i => i.completed).length} / {checklist.items.length} complete</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+**Permissions:**
+- User must be a board member
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `Card not found` - Invalid card ID
+- `Access denied` - User is not a member of the board
+
+---
+
+## Mutations
+
+### create
+
+Creates a new checklist on a card.
+
+<ParamField body="cardId" type="Id<'cards'>" required>
+  The card to add the checklist to
+</ParamField>
+
+<ParamField body="title" type="string" required>
+  The checklist title (e.g., "Setup Tasks")
+</ParamField>
+
+<ResponseField name="checklist" type="object">
+  The created checklist object
+  <Expandable title="Properties">
+    <ResponseField name="_id" type="Id<'checklists'>" required>
+      Unique identifier
+    </ResponseField>
+    <ResponseField name="cardId" type="Id<'cards'>" required>
+      Parent card ID
+    </ResponseField>
+    <ResponseField name="title" type="string" required>
+      The checklist title
+    </ResponseField>
+    <ResponseField name="position" type="number" required>
+      Auto-assigned position (max + 1)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function AddChecklist({ cardId }) {
+  const createChecklist = useMutation(api.checklists.create);
+  
+  const handleCreate = async () => {
+    const checklist = await createChecklist({
+      cardId,
+      title: "Acceptance Criteria"
+    });
+    console.log("Created:", checklist);
+  };
+  
+  return <button onClick={handleCreate}>Add Checklist</button>;
+}
+```
+
+**Behavior:**
+- Position is automatically set to `max(existing positions) + 1`
+
+**Permissions:**
+- User must have at least "member" role
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `Card not found` - Invalid card ID
+- `Insufficient permissions` - User is a viewer
+
+---
+
+### deleteChecklist
+
+Deletes a checklist and all its items.
+
+<ParamField body="checklistId" type="Id<'checklists'>" required>
+  The ID of the checklist to delete
+</ParamField>
+
+<ResponseField name="success" type="boolean">
+  Returns `true` when deletion is complete
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function DeleteChecklistButton({ checklistId }) {
+  const deleteChecklist = useMutation(api.checklists.deleteChecklist);
+  
+  const handleDelete = async () => {
+    if (confirm("Delete this checklist?")) {
+      await deleteChecklist({ checklistId });
+    }
+  };
+  
+  return <button onClick={handleDelete}>Delete</button>;
+}
+```
+
+**Cascade Behavior:**
+- All checklist items are deleted
+
+**Permissions:**
+- User must have at least "member" role
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `Checklist not found` - Invalid checklist ID
+- `Card not found` - Parent card doesn't exist
+- `Insufficient permissions` - User is a viewer
+
+---
+
+### createItem
+
+Adds a new item to a checklist.
+
+<ParamField body="checklistId" type="Id<'checklists'>" required>
+  The checklist to add the item to
+</ParamField>
+
+<ParamField body="title" type="string" required>
+  The item text
+</ParamField>
+
+<ResponseField name="item" type="object">
+  The created checklist item
+  <Expandable title="Properties">
+    <ResponseField name="_id" type="Id<'checklistItems'>" required>
+      Unique identifier
+    </ResponseField>
+    <ResponseField name="checklistId" type="Id<'checklists'>" required>
+      Parent checklist ID
+    </ResponseField>
+    <ResponseField name="title" type="string" required>
+      The item text
+    </ResponseField>
+    <ResponseField name="completed" type="boolean" required>
+      Initially set to `false`
+    </ResponseField>
+    <ResponseField name="position" type="number" required>
+      Auto-assigned position
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function AddChecklistItem({ checklistId }) {
+  const createItem = useMutation(api.checklists.createItem);
+  const [title, setTitle] = useState("");
+  
+  const handleAdd = async () => {
+    await createItem({ checklistId, title });
+    setTitle("");
+  };
+  
+  return (
+    <div>
+      <input value={title} onChange={e => setTitle(e.target.value)} />
+      <button onClick={handleAdd}>Add Item</button>
+    </div>
+  );
+}
+```
+
+**Behavior:**
+- `completed` defaults to `false`
+- Position is automatically set to `max(existing positions) + 1`
+
+**Permissions:**
+- User must have at least "member" role
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `Checklist not found` - Invalid checklist ID
+- `Card not found` - Parent card doesn't exist
+- `Insufficient permissions` - User is a viewer
+
+---
+
+### updateItem
+
+Updates a checklist item's properties.
+
+<ParamField body="itemId" type="Id<'checklistItems'>" required>
+  The ID of the item to update
+</ParamField>
+
+<ParamField body="title" type="string">
+  New item text (optional)
+</ParamField>
+
+<ParamField body="completed" type="boolean">
+  Completion status (optional)
+</ParamField>
+
+<ParamField body="assignedTo" type="string">
+  User ID to assign the item to (optional)
+</ParamField>
+
+<ParamField body="dueDate" type="number">
+  Due date timestamp (optional)
+</ParamField>
+
+<ResponseField name="item" type="object">
+  The updated checklist item
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function ChecklistItem({ item }) {
+  const updateItem = useMutation(api.checklists.updateItem);
+  
+  const toggleComplete = async () => {
+    await updateItem({
+      itemId: item._id,
+      completed: !item.completed
+    });
+  };
+  
+  const assignToUser = async (userId: string) => {
+    await updateItem({
+      itemId: item._id,
+      assignedTo: userId
+    });
+  };
+  
+  return (
+    <div>
+      <input 
+        type="checkbox" 
+        checked={item.completed} 
+        onChange={toggleComplete} 
+      />
+      <span>{item.title}</span>
+    </div>
+  );
+}
+```
+
+**Permissions:**
+- User must have at least "member" role
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `Item not found` - Invalid item ID
+- `Checklist not found` - Parent checklist doesn't exist
+- `Card not found` - Parent card doesn't exist
+- `Insufficient permissions` - User is a viewer
+
+---
+
+### deleteItem
+
+Deletes a checklist item.
+
+<ParamField body="itemId" type="Id<'checklistItems'>" required>
+  The ID of the item to delete
+</ParamField>
+
+<ResponseField name="success" type="boolean">
+  Returns `true` when deletion is complete
+</ResponseField>
+
+**Example:**
+
+```typescript
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function DeleteItemButton({ itemId }) {
+  const deleteItem = useMutation(api.checklists.deleteItem);
+  
+  const handleDelete = async () => {
+    await deleteItem({ itemId });
+  };
+  
+  return <button onClick={handleDelete}>×</button>;
+}
+```
+
+**Permissions:**
+- User must have at least "member" role
+
+**Errors:**
+- `Unauthorized` - User is not authenticated
+- `Item not found` - Invalid item ID
+- `Checklist not found` - Parent checklist doesn't exist
+- `Card not found` - Parent card doesn't exist
+- `Insufficient permissions` - User is a viewer
+
+---
+
+## Progress Tracking
+
+To calculate checklist completion percentage:
+
+```typescript
+const calculateProgress = (checklist) => {
+  const total = checklist.items.length;
+  const completed = checklist.items.filter(item => item.completed).length;
+  return total === 0 ? 0 : Math.round((completed / total) * 100);
+};
+```
+
+## Related APIs
+
+- [Cards API](/api/cards) - Manage cards that contain checklists
+- [Boards API](/api/boards) - Manage boards and permissions

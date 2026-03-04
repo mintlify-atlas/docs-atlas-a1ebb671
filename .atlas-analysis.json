@@ -1,0 +1,116 @@
+{
+  "projectType": "saas",
+  "projectName": "Better Todo",
+  "projectDescription": "A Trello-like collaborative task management app with Kanban boards, real-time updates, and team collaboration features.",
+  "theme": "almond",
+  "primaryColor": "#c0afc7",
+  "lightColor": "#91729a",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart", "installation"]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/boards",
+              "features/cards",
+              "features/collaboration",
+              "features/notifications"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/authentication",
+              "configuration/email",
+              "configuration/environment"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/deployment",
+              "guides/pwa",
+              "guides/theming"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": ["api/overview"]
+          },
+          {
+            "group": "Boards",
+            "pages": ["api/boards"]
+          },
+          {
+            "group": "Cards",
+            "pages": ["api/cards"]
+          },
+          {
+            "group": "Lists",
+            "pages": ["api/lists"]
+          },
+          {
+            "group": "Collaboration",
+            "pages": ["api/members", "api/comments"]
+          },
+          {
+            "group": "Notifications",
+            "pages": ["api/notifications"]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Kanban boards with drag-and-drop",
+    "Real-time collaboration",
+    "Cards with descriptions, due dates, priorities, labels, and checklists",
+    "Email/password and Google OAuth authentication",
+    "Email notifications for invites and mentions",
+    "Progressive Web App support",
+    "Dark/Light mode"
+  ],
+  "publicApiSurface": [
+    "boards.create",
+    "boards.get",
+    "boards.update",
+    "boards.delete",
+    "boards.addMember",
+    "boards.removeMember",
+    "lists.create",
+    "lists.update",
+    "lists.delete",
+    "lists.reorder",
+    "cards.create",
+    "cards.get",
+    "cards.update",
+    "cards.delete",
+    "cards.move",
+    "cards.assignMember",
+    "labels.create",
+    "labels.update",
+    "labels.delete",
+    "checklists.create",
+    "checklists.addItem",
+    "checklists.updateItem",
+    "comments.create",
+    "comments.update",
+    "comments.delete",
+    "notifications.list",
+    "notifications.markAsRead",
+    "attachments.upload",
+    "attachments.delete"
+  ]
+}
